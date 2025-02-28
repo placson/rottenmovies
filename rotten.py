@@ -76,7 +76,6 @@ def scrape_rotten_tomatoes(movie):
         print("synopsis: %s" % synopsis)
     
 if __name__ == "__main__":
-    # Example URL for a movie's reviews page on Rotten Tomatoes
     movie = input("Search Rotten Tomatoes database: ")
     scrape_rotten_tomatoes(movie)
 
