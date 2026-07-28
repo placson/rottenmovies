@@ -26,10 +26,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  const isbn = normalizeIsbn(String(body?.isbn ?? ""));
+  const raw = String(body?.isbn ?? "");
+  const isbn = normalizeIsbn(raw);
   if (!isValidIsbn(isbn)) {
     return NextResponse.json(
-      { error: "That doesn't look like a valid ISBN." },
+      { error: `That doesn't look like a valid ISBN (read: “${raw}”).` },
       { status: 400 }
     );
   }

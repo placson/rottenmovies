@@ -2,9 +2,33 @@ import type { NewBook } from "./db";
 
 export type BookData = Omit<NewBook, never>;
 
-/** Strip everything but digits / X from a scanned or typed ISBN. */
+/**
+ * Turn whatever the scanner or user gives us into a clean ISBN.
+ *
+ * Book barcodes are EAN-13 (starting 978/979). Scanners often also pick up the
+ * small 5- or 2-digit price/edition supplement printed next to the barcode, so
+ * a scan can come back as e.g. "978030738713451600". A US book may also carry a
+ * 12-digit UPC-A. This strips separators and reduces those cases to the core
+ * ISBN-13 whenever we can recognize it.
+ */
 export function normalizeIsbn(raw: string): string {
-  return raw.replace(/[^0-9Xx]/g, "").toUpperCase();
+  const digits = raw.replace(/[^0-9Xx]/g, "").toUpperCase();
+
+  // EAN-13 (+ supplement): keep the 13-digit ISBN core.
+  if (
+    digits.length > 13 &&
+    (digits.startsWith("978") || digits.startsWith("979"))
+  ) {
+    return digits.slice(0, 13);
+  }
+
+  // Some scanners return the ISBN-13 embedded after other digits.
+  if (digits.length > 13) {
+    const match = digits.match(/(97[89]\d{10})/);
+    if (match) return match[1];
+  }
+
+  return digits;
 }
 
 /** Basic length check for ISBN-10 / ISBN-13. */
