@@ -1019,3 +1019,56 @@ body {
     border-color: #000;
   }
 }
+
+/* ---------- manual layout / drag ---------- */
+.layout-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.layout-pill {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+.layout-pill.auto {
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.layout-pill.custom {
+  background: rgba(62, 207, 142, 0.15);
+  color: var(--ok);
+}
+.layout-hint {
+  font-size: 13px;
+  color: var(--muted);
+  flex: 1;
+  min-width: 180px;
+}
+.layout-reset {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.spine {
+  transition: opacity 0.1s;
+}
+.spine.dragging {
+  opacity: 0.35;
+}
+.shelf.drop-target .shelf-books {
+  outline: 2px dashed var(--accent-2);
+  outline-offset: -2px;
+  background: rgba(255, 182, 72, 0.08);
+}
+.shelf-caption.over {
+  color: var(--err);
+  font-weight: 600;
+}

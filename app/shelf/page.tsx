@@ -9,6 +9,10 @@ import {
   DEFAULT_OPTIONS,
   SECTIONS,
   sectionColor,
+  placeBook,
+  finalizeShelves,
+  reconcileManual,
+  planToRows,
   type ShelfOptions,
   type PlannedShelf,
 } from "@/lib/shelf";
@@ -18,6 +22,7 @@ const BookEditor = nextDynamic(() => import("@/components/BookEditor"), {
 });
 
 const OPT_KEY = "shelfPlan.options.v1";
+const MANUAL_KEY = "shelfPlan.manual.v1";
 
 function hashStr(s: string): number {
   let h = 0;
@@ -32,6 +37,12 @@ export default function ShelfPage() {
   const [scale, setScale] = useState(1.3); // px per mm, visual only
   const [editing, setEditing] = useState<Book | null>(null);
 
+  // Manual drag layout: null = follow the auto plan; otherwise ordered id rows.
+  const [manual, setManual] = useState<string[][] | null>(null);
+  const [savedManual, setSavedManual] = useState<string[][] | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropShelf, setDropShelf] = useState<number | null>(null);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem(OPT_KEY);
@@ -39,6 +50,15 @@ export default function ShelfPage() {
         const p = JSON.parse(raw);
         if (p.opts) setOpts((o) => ({ ...o, ...p.opts }));
         if (p.scale) setScale(p.scale);
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const rawM = localStorage.getItem(MANUAL_KEY);
+      if (rawM) {
+        const rows = JSON.parse(rawM);
+        if (Array.isArray(rows)) setSavedManual(rows);
       }
     } catch {
       /* ignore */
@@ -71,9 +91,46 @@ export default function ShelfPage() {
 
   const plan = useMemo(() => planLibrary(books, opts), [books, opts]);
 
+  const byId = useMemo(
+    () => new Map(books.map((b) => [b.id, b])),
+    [books]
+  );
+
+  // Once books are loaded, adopt a saved manual layout (reconciled to the
+  // current library). Runs when the saved layout or the book set changes.
+  useEffect(() => {
+    if (savedManual && books.length && manual === null) {
+      setManual(reconcileManual(savedManual, books));
+    }
+  }, [savedManual, books, manual]);
+
+  // Persist the manual layout (or clear it when back on the auto plan).
+  useEffect(() => {
+    try {
+      if (manual) localStorage.setItem(MANUAL_KEY, JSON.stringify(manual));
+      else localStorage.removeItem(MANUAL_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, [manual]);
+
+  // The shelves actually rendered: manual layout if present, else auto plan.
+  const displayShelves = useMemo<PlannedShelf[]>(() => {
+    if (manual) {
+      const rows = manual.map((row) =>
+        row
+          .map((id) => byId.get(id))
+          .filter((b): b is Book => Boolean(b))
+          .map((b) => placeBook(b, opts))
+      );
+      return finalizeShelves(rows, opts);
+    }
+    return plan.shelves;
+  }, [manual, byId, opts, plan]);
+
   const bays = useMemo(() => {
     const m = new Map<number, PlannedShelf[]>();
-    for (const sh of plan.shelves) {
+    for (const sh of displayShelves) {
       const a = m.get(sh.bay) ?? [];
       a.push(sh);
       m.set(sh.bay, a);
@@ -81,20 +138,88 @@ export default function ShelfPage() {
     return [...m.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([, s]) => s.sort((x, y) => x.indexInBay - y.indexInBay));
-  }, [plan]);
+  }, [displayShelves]);
 
   const shelvesPerBay = opts.shelvesPerBay + (opts.hasExtension ? 1 : 0);
-  const fillPct = plan.shelves.length
-    ? Math.round(
-        (plan.totalLinearMm / (plan.shelves.length * plan.capacityMm)) * 100
-      )
+  const capacityMm = opts.shelfWidthCm * 10;
+  const totalLinearMm = displayShelves.reduce((s, sh) => s + sh.usedMm, 0);
+  const usedShelfCount = displayShelves.filter((s) => s.items.length > 0).length;
+  const bayCount = displayShelves.length
+    ? Math.max(...displayShelves.map((s) => s.bay)) + 1
+    : 0;
+  const fillPct = usedShelfCount
+    ? Math.round((totalLinearMm / (usedShelfCount * capacityMm)) * 100)
     : 0;
   const uncategorized = books.filter((b) => b.categories.length === 0).length;
 
   const setOpt = <K extends keyof ShelfOptions>(k: K, v: ShelfOptions[K]) =>
     setOpts((o) => ({ ...o, [k]: v }));
 
-  const bayInnerWidth = plan.capacityMm * scale;
+  const bayInnerWidth = capacityMm * scale;
+
+  /* ---- drag to move ---- */
+  const onSpineDragStart = (e: React.DragEvent, bookId: string) => {
+    e.dataTransfer.setData("text/plain", bookId);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggingId(bookId);
+  };
+
+  const onShelfDragOver = (e: React.DragEvent, shelfIndex: number) => {
+    if (!draggingId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dropShelf !== shelfIndex) setDropShelf(shelfIndex);
+  };
+
+  const onShelfDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const bookId = draggingId || e.dataTransfer.getData("text/plain");
+    setDraggingId(null);
+    setDropShelf(null);
+    if (!bookId) return;
+
+    // Insertion position from the cursor's x among this shelf's spines.
+    const container = e.currentTarget as HTMLElement;
+    const spines = Array.from(
+      container.querySelectorAll<HTMLElement>(".spine")
+    );
+    let insertIdx = spines.length;
+    for (let i = 0; i < spines.length; i++) {
+      const r = spines[i].getBoundingClientRect();
+      if (e.clientX < r.left + r.width / 2) {
+        insertIdx = i;
+        break;
+      }
+    }
+
+    setManual((prev) => {
+      const base = (prev ?? planToRows(plan)).map((row) => [...row]);
+      let src = -1;
+      let srcIdx = -1;
+      for (let s = 0; s < base.length; s++) {
+        const k = base[s].indexOf(bookId);
+        if (k >= 0) {
+          src = s;
+          srcIdx = k;
+          break;
+        }
+      }
+      if (src === -1) return prev;
+      const target = Math.min(targetIndex, base.length - 1);
+      base[src].splice(srcIdx, 1);
+      let idx = insertIdx;
+      if (src === target && srcIdx < idx) idx--;
+      base[target].splice(idx, 0, bookId);
+      return base;
+    });
+  };
+
+  const resetToAuto = () => {
+    if (!confirm("Discard your manual arrangement and return to the auto plan?"))
+      return;
+    setManual(null);
+    setSavedManual(null);
+  };
 
   return (
     <main className="page shelf-page">
@@ -116,19 +241,34 @@ export default function ShelfPage() {
         </p>
       ) : (
         <>
+          <div className="layout-bar no-print">
+            <span className={`layout-pill ${manual ? "custom" : "auto"}`}>
+              {manual ? "✎ Custom layout" : "◆ Auto layout"}
+            </span>
+            <span className="layout-hint">
+              Drag a book spine to move it between shelves — your arrangement is
+              saved on this device.
+            </span>
+            {manual && (
+              <button className="layout-reset" onClick={resetToAuto}>
+                Reset to auto
+              </button>
+            )}
+          </div>
+
           <section className="stats-card">
             <div className="stat">
-              <span className="stat-n">{plan.totalBooks}</span>
+              <span className="stat-n">{books.length}</span>
               <span className="stat-l">books</span>
             </div>
             <div className="stat">
-              <span className="stat-n">{(plan.totalLinearMm / 1000).toFixed(1)} m</span>
+              <span className="stat-n">{(totalLinearMm / 1000).toFixed(1)} m</span>
               <span className="stat-l">of spines</span>
             </div>
             <div className="stat">
-              <span className="stat-n">{plan.bayCount}</span>
+              <span className="stat-n">{bayCount}</span>
               <span className="stat-l">
-                bookcase{plan.bayCount === 1 ? "" : "s"} ({shelvesPerBay} shelves)
+                bookcase{bayCount === 1 ? "" : "s"} ({shelvesPerBay} shelves)
               </span>
             </div>
             <div className="stat">
@@ -235,50 +375,75 @@ export default function ShelfPage() {
               >
                 <div className="bay-label">Bookcase {bi + 1}</div>
                 <div className="bay-frame">
-                  {shelves.map((sh) => (
-                    <div
-                      className={`shelf ${sh.isExtension ? "ext" : ""}`}
-                      key={sh.indexInBay}
-                    >
-                      {sh.isExtension && <div className="ext-tag">Extension</div>}
+                  {shelves.map((sh) => {
+                    const over = sh.usedMm > sh.capacityMm;
+                    return (
                       <div
-                        className="shelf-books"
-                        style={{ width: bayInnerWidth }}
+                        className={`shelf ${sh.isExtension ? "ext" : ""} ${
+                          dropShelf === sh.globalIndex ? "drop-target" : ""
+                        }`}
+                        key={sh.globalIndex}
                       >
-                        {sh.items.map((it) => {
-                          const w = Math.max(it.widthMm * scale, 3);
-                          const h = 74 + (hashStr(it.book.id) % 22);
-                          const wide = w >= 15;
-                          return (
-                            <button
-                              key={it.book.id}
-                              className="spine"
-                              style={{
-                                width: w,
-                                height: `${h}%`,
-                                background: it.color,
-                              }}
-                              title={`${it.book.title}${
-                                it.book.authors ? " — " + it.book.authors : ""
-                              } · ${it.category} · ${it.widthMm} mm`}
-                              onClick={() => setEditing(it.book)}
-                            >
-                              {wide && (
-                                <span className="spine-title">
-                                  {it.book.title}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
+                        {sh.isExtension && (
+                          <div className="ext-tag">Extension</div>
+                        )}
+                        <div
+                          className="shelf-books"
+                          style={{ width: bayInnerWidth }}
+                          onDragOver={(e) => onShelfDragOver(e, sh.globalIndex)}
+                          onDragLeave={() => setDropShelf(null)}
+                          onDrop={(e) => onShelfDrop(e, sh.globalIndex)}
+                        >
+                          {sh.items.map((it) => {
+                            const w = Math.max(it.widthMm * scale, 3);
+                            const h = 74 + (hashStr(it.book.id) % 22);
+                            const wide = w >= 15;
+                            return (
+                              <button
+                                key={it.book.id}
+                                className={`spine ${
+                                  draggingId === it.book.id ? "dragging" : ""
+                                }`}
+                                draggable
+                                onDragStart={(e) =>
+                                  onSpineDragStart(e, it.book.id)
+                                }
+                                onDragEnd={() => {
+                                  setDraggingId(null);
+                                  setDropShelf(null);
+                                }}
+                                style={{
+                                  width: w,
+                                  height: `${h}%`,
+                                  background: it.color,
+                                }}
+                                title={`${it.book.title}${
+                                  it.book.authors ? " — " + it.book.authors : ""
+                                } · ${it.category} · ${it.widthMm} mm`}
+                                onClick={() => setEditing(it.book)}
+                              >
+                                {wide && (
+                                  <span className="spine-title">
+                                    {it.book.title}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="plank" />
+                        <div className={`shelf-caption ${over ? "over" : ""}`}>
+                          {sh.indexInBay + 1}. {sh.sections.join(" / ") || "—"} ·{" "}
+                          {Math.round(sh.usedMm / 10)} cm
+                          {over
+                            ? ` · over by ${Math.round(
+                                (sh.usedMm - sh.capacityMm) / 10
+                              )} cm`
+                            : ""}
+                        </div>
                       </div>
-                      <div className="plank" />
-                      <div className="shelf-caption">
-                        {sh.indexInBay + 1}. {sh.sections.join(" / ")} ·{" "}
-                        {Math.round(sh.usedMm / 10)} cm
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -287,13 +452,13 @@ export default function ShelfPage() {
           {/* ---- printable shelf-by-shelf plan ---- */}
           <div className="print-plan">
             <h2 className="print-only plan-title">
-              Library Shelf Plan — {plan.totalBooks} books
+              Library Shelf Plan — {books.length} books
             </h2>
             {bays.map((shelves, bi) => (
               <div className="pp-bay" key={bi}>
                 <h3>Bookcase {bi + 1}</h3>
                 {shelves.map((sh) => (
-                  <div className="pp-shelf" key={sh.indexInBay}>
+                  <div className="pp-shelf" key={sh.globalIndex}>
                     <h4>
                       Shelf {sh.indexInBay + 1}
                       {sh.isExtension ? " · top extension" : ""} —{" "}

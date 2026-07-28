@@ -202,6 +202,7 @@ export type PlacedBook = {
 };
 
 export type PlannedShelf = {
+  globalIndex: number; // position across all shelves (matches manual-layout index)
   bay: number; // 0-based
   indexInBay: number; // 0 = top
   isExtension: boolean;
@@ -272,8 +273,8 @@ export function planLibrary(books: Book[], options: ShelfOptions): ShelfPlan {
   const makeShelf = (): PlannedShelf => {
     const bay = Math.floor(globalShelfIndex / perBay);
     const indexInBay = globalShelfIndex % perBay;
-    globalShelfIndex++;
-    return {
+    const shelf: PlannedShelf = {
+      globalIndex: globalShelfIndex,
       bay,
       indexInBay,
       isExtension: options.hasExtension && indexInBay === 0,
@@ -282,6 +283,8 @@ export function planLibrary(books: Book[], options: ShelfOptions): ShelfPlan {
       capacityMm,
       sections: [],
     };
+    globalShelfIndex++;
+    return shelf;
   };
 
   for (const d of decorated) {
@@ -329,4 +332,91 @@ export function planLibrary(books: Book[], options: ShelfOptions): ShelfPlan {
     capacityMm,
     options,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Manual layout support (drag-to-move)                                *
+ * A manual layout is just an ordered list of shelves, each an ordered *
+ * list of book ids. Bays are derived purely by chunking.              *
+ * ------------------------------------------------------------------ */
+
+/** The section title a book belongs to (for shelf captions). */
+export function categorySectionTitle(category: string | undefined): string {
+  if (category && CATEGORY_INDEX[category]) {
+    return CATEGORY_INDEX[category].section.title;
+  }
+  if (category) return SECTIONS[SECTIONS.length - 1].title;
+  return UNCATEGORIZED_SECTION.title;
+}
+
+/** Turn a book into a placed spine (width + color). */
+export function placeBook(book: Book, o: ShelfOptions): PlacedBook {
+  const category = book.categories[0] ?? "Uncategorized";
+  const known = Boolean(CATEGORY_INDEX[category]);
+  return {
+    book,
+    widthMm: spineWidthMm(book, o),
+    category,
+    color: known ? categoryColor(category) : "hsl(0 0% 45%)",
+  };
+}
+
+/** Build display shelves (bay/index/extension/usage) from explicit id rows. */
+export function finalizeShelves(
+  rows: PlacedBook[][],
+  options: ShelfOptions
+): PlannedShelf[] {
+  const capacityMm = options.shelfWidthCm * 10;
+  const perBay = options.shelvesPerBay + (options.hasExtension ? 1 : 0);
+
+  return rows.map((items, i) => {
+    const sections: string[] = [];
+    for (const it of items) {
+      const title = categorySectionTitle(it.book.categories[0]);
+      if (!sections.includes(title)) sections.push(title);
+    }
+    const indexInBay = i % perBay;
+    return {
+      globalIndex: i,
+      bay: Math.floor(i / perBay),
+      indexInBay,
+      isExtension: options.hasExtension && indexInBay === 0,
+      items,
+      usedMm: items.reduce((s, it) => s + it.widthMm, 0),
+      capacityMm,
+      sections,
+    };
+  });
+}
+
+/**
+ * Reconcile a saved manual layout with the current library: drop ids that no
+ * longer exist (and duplicates), then append any books not yet placed to a
+ * trailing shelf. Empty interior shelves are preserved so the grid is stable.
+ */
+export function reconcileManual(
+  saved: string[][],
+  books: Book[]
+): string[][] {
+  const byId = new Map(books.map((b) => [b.id, b]));
+  const seen = new Set<string>();
+  const rows = saved.map((row) =>
+    row.filter((id) => {
+      if (byId.has(id) && !seen.has(id)) {
+        seen.add(id);
+        return true;
+      }
+      return false;
+    })
+  );
+  const unplaced = books.filter((b) => !seen.has(b.id)).map((b) => b.id);
+  if (unplaced.length) rows.push(unplaced);
+  // Trim trailing empty shelves (but keep interior empties).
+  while (rows.length > 1 && rows[rows.length - 1].length === 0) rows.pop();
+  return rows;
+}
+
+/** The auto plan expressed as a manual layout (id rows) — the drag seed. */
+export function planToRows(plan: ShelfPlan): string[][] {
+  return plan.shelves.map((sh) => sh.items.map((it) => it.book.id));
 }
