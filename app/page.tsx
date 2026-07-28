@@ -27,6 +27,7 @@ export default function Home() {
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [editing, setEditing] = useState<Book | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reorganizing, setReorganizing] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
 
   const showToast = useCallback((text: string, kind: "ok" | "err") => {
@@ -92,6 +93,31 @@ export default function Home() {
     },
     [addByIsbn]
   );
+
+  const reorganize = useCallback(async () => {
+    setReorganizing(true);
+    try {
+      const res = await fetch("/api/reorganize", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error ?? "Reorganize failed.", "err");
+        return;
+      }
+      await loadBooks();
+      showToast(
+        data.updated > 0
+          ? `Auto-categorized ${data.updated} of ${data.scanned} book${
+              data.scanned === 1 ? "" : "s"
+            }.`
+          : "No new categories could be guessed.",
+        data.updated > 0 ? "ok" : "err"
+      );
+    } catch {
+      showToast("Network error during reorganize.", "err");
+    } finally {
+      setReorganizing(false);
+    }
+  }, [loadBooks, showToast]);
 
   // Category → count, for the filter bar.
   const categoryCounts = useMemo(() => {
@@ -173,6 +199,17 @@ export default function Home() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+        )}
+        {uncategorizedCount > 0 && (
+          <button
+            className="reorg-btn"
+            onClick={reorganize}
+            disabled={reorganizing}
+          >
+            {reorganizing
+              ? "Categorizing…"
+              : `✨ Auto-categorize ${uncategorizedCount} uncategorized`}
+          </button>
         )}
       </div>
 
@@ -294,7 +331,7 @@ export default function Home() {
         />
       )}
 
-      {busy && <div className="busy-bar" aria-hidden />}
+      {(busy || reorganizing) && <div className="busy-bar" aria-hidden />}
 
       {toast && (
         <div className={`toast ${toast.kind}`} role="status">

@@ -35,6 +35,9 @@ Screen" and it behaves like a native app.
   can **override with multiple categories** in the editor.
 - 🗂️ **Filter** the library by category (with live counts) and search by title,
   author, ISBN, or category
+- ✨ **Auto-categorize** button re-classifies every uncategorized book at once
+  (useful for books added before categories existed); never touches books you
+  categorized by hand
 - ⭐ **Your 5-star rating**, plus **Goodreads link + Goodreads rating**
 - 📅 **Reading dates** — date added, date started, date finished (with a
   Reading / Read badge on each cover)
@@ -135,6 +138,7 @@ public/
 | `POST`   | `/api/books`      | `{ "isbn": …}`                | Look up an ISBN, auto-classify, and add  |
 | `PATCH`  | `/api/books/:id`  | `{ categories, rating, … }`   | Update categories, rating, dates, Goodreads |
 | `DELETE` | `/api/books/:id`  | —                             | Remove a book                            |
+| `POST`   | `/api/reorganize` | —                             | Auto-categorize every uncategorized book |
 
 ### Goodreads note
 

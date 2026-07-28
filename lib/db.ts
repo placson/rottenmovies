@@ -168,6 +168,15 @@ async function writeFileStore(books: Book[]): Promise<void> {
   await fs.writeFile(DATA_FILE, JSON.stringify(books, null, 2), "utf8");
 }
 
+// Serialize read-modify-write cycles so concurrent mutations (e.g. the
+// reorganize endpoint) can't clobber each other's changes in the file store.
+let fileLock: Promise<unknown> = Promise.resolve();
+function withFileLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = fileLock.then(fn, fn);
+  fileLock = run.catch(() => {});
+  return run;
+}
+
 /* ------------------------------------------------------------------ *
  * Public API                                                          *
  * ------------------------------------------------------------------ */
@@ -202,14 +211,8 @@ export async function getBookById(id: string): Promise<Book | null> {
   return books.find((b) => b.id === id) ?? null;
 }
 
-export async function addBook(
-  data: NewBook
-): Promise<{ book: Book; created: boolean }> {
-  // De-duplicate by ISBN: if we already have it, return the existing record.
-  const existing = await getBookByIsbn(data.isbn);
-  if (existing) return { book: existing, created: false };
-
-  const book: Book = {
+function buildBook(data: NewBook): Book {
+  return {
     id: randomUUID(),
     added_at: new Date().toISOString(),
     date_started: null,
@@ -218,33 +221,10 @@ export async function addBook(
     goodreads_rating: null,
     ...data,
   };
-
-  if (usePostgres) {
-    const sql = await getSql();
-    await sql`
-      INSERT INTO books (id, isbn, title, authors, cover_url, published, publisher,
-                         page_count, categories, goodreads_url, added_at)
-      VALUES (${book.id}, ${book.isbn}, ${book.title}, ${book.authors},
-              ${book.cover_url}, ${book.published}, ${book.publisher},
-              ${book.page_count}, ${JSON.stringify(book.categories)},
-              ${book.goodreads_url}, ${book.added_at})
-    `;
-  } else {
-    const books = await readFileStore();
-    books.push(book);
-    await writeFileStore(books);
-  }
-  return { book, created: true };
 }
 
-export async function updateBook(
-  id: string,
-  patch: BookUpdate
-): Promise<Book | null> {
-  const current = await getBookById(id);
-  if (!current) return null;
-
-  const merged: Book = {
+function mergeBook(current: Book, patch: BookUpdate): Book {
+  return {
     ...current,
     categories: patch.categories ?? current.categories,
     date_started:
@@ -265,8 +245,48 @@ export async function updateBook(
         ? patch.goodreads_rating
         : current.goodreads_rating,
   };
+}
 
+export async function addBook(
+  data: NewBook
+): Promise<{ book: Book; created: boolean }> {
   if (usePostgres) {
+    // De-duplicate by ISBN: if we already have it, return the existing record.
+    const existing = await getBookByIsbn(data.isbn);
+    if (existing) return { book: existing, created: false };
+
+    const book = buildBook(data);
+    const sql = await getSql();
+    await sql`
+      INSERT INTO books (id, isbn, title, authors, cover_url, published, publisher,
+                         page_count, categories, goodreads_url, added_at)
+      VALUES (${book.id}, ${book.isbn}, ${book.title}, ${book.authors},
+              ${book.cover_url}, ${book.published}, ${book.publisher},
+              ${book.page_count}, ${JSON.stringify(book.categories)},
+              ${book.goodreads_url}, ${book.added_at})
+    `;
+    return { book, created: true };
+  }
+
+  return withFileLock(async () => {
+    const books = await readFileStore();
+    const existing = books.find((b) => b.isbn === data.isbn);
+    if (existing) return { book: existing, created: false };
+    const book = buildBook(data);
+    books.push(book);
+    await writeFileStore(books);
+    return { book, created: true };
+  });
+}
+
+export async function updateBook(
+  id: string,
+  patch: BookUpdate
+): Promise<Book | null> {
+  if (usePostgres) {
+    const current = await getBookById(id);
+    if (!current) return null;
+    const merged = mergeBook(current, patch);
     const sql = await getSql();
     await sql`
       UPDATE books SET
@@ -278,14 +298,18 @@ export async function updateBook(
         goodreads_rating = ${merged.goodreads_rating}
       WHERE id = ${id}
     `;
-  } else {
+    return merged;
+  }
+
+  return withFileLock(async () => {
     const books = await readFileStore();
     const idx = books.findIndex((b) => b.id === id);
     if (idx === -1) return null;
+    const merged = mergeBook(books[idx], patch);
     books[idx] = merged;
     await writeFileStore(books);
-  }
-  return merged;
+    return merged;
+  });
 }
 
 export async function deleteBook(id: string): Promise<boolean> {
@@ -294,11 +318,14 @@ export async function deleteBook(id: string): Promise<boolean> {
     const rows = await sql`DELETE FROM books WHERE id = ${id} RETURNING id`;
     return rows.length > 0;
   }
-  const books = await readFileStore();
-  const next = books.filter((b) => b.id !== id);
-  if (next.length === books.length) return false;
-  await writeFileStore(next);
-  return true;
+
+  return withFileLock(async () => {
+    const books = await readFileStore();
+    const next = books.filter((b) => b.id !== id);
+    if (next.length === books.length) return false;
+    await writeFileStore(next);
+    return true;
+  });
 }
 
 export const storageBackend = usePostgres ? "postgres" : "file";
