@@ -5,6 +5,7 @@ import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import type { Book } from "@/lib/db";
 import { fetchCategories, createCategory } from "@/lib/categoryClient";
+import { roomToBayConfigs, type Room } from "@/lib/room";
 import {
   planLibrary,
   DEFAULT_OPTIONS,
@@ -48,6 +49,8 @@ export default function ShelfPage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropShelf, setDropShelf] = useState<number | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [useRoom, setUseRoom] = useState(false);
 
   useEffect(() => {
     try {
@@ -56,6 +59,7 @@ export default function ShelfPage() {
         const p = JSON.parse(raw);
         if (p.opts) setOpts((o) => ({ ...o, ...p.opts }));
         if (p.scale) setScale(p.scale);
+        if (typeof p.useRoom === "boolean") setUseRoom(p.useRoom);
       }
     } catch {
       /* ignore */
@@ -73,11 +77,11 @@ export default function ShelfPage() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(OPT_KEY, JSON.stringify({ opts, scale }));
+      localStorage.setItem(OPT_KEY, JSON.stringify({ opts, scale, useRoom }));
     } catch {
       /* ignore */
     }
-  }, [opts, scale]);
+  }, [opts, scale, useRoom]);
 
   const load = useCallback(async () => {
     try {
@@ -94,6 +98,12 @@ export default function ShelfPage() {
   useEffect(() => {
     load();
     fetchCategories().then(setCategories).catch(() => {});
+    fetch("/api/room", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.room) setRoom(d.room);
+      })
+      .catch(() => {});
   }, [load]);
 
   const onCreateCategory = useCallback(async (name: string) => {
@@ -102,7 +112,19 @@ export default function ShelfPage() {
     return name;
   }, []);
 
-  const plan = useMemo(() => planLibrary(books, opts), [books, opts]);
+  // When "use my room layout" is on, the room's furniture (in fill order)
+  // supplies the bays; otherwise the option-panel settings apply.
+  const planOpts = useMemo<ShelfOptions>(() => {
+    if (useRoom && room && room.furniture.length > 0) {
+      return { ...opts, bookcases: roomToBayConfigs(room) };
+    }
+    return opts;
+  }, [opts, useRoom, room]);
+
+  const plan = useMemo(
+    () => planLibrary(books, planOpts),
+    [books, planOpts]
+  );
 
   const byId = useMemo(
     () => new Map(books.map((b) => [b.id, b])),
@@ -134,12 +156,12 @@ export default function ShelfPage() {
         row
           .map((id) => byId.get(id))
           .filter((b): b is Book => Boolean(b))
-          .map((b) => placeBook(b, opts))
+          .map((b) => placeBook(b, planOpts))
       );
-      return finalizeShelves(rows, opts);
+      return finalizeShelves(rows, planOpts);
     }
     return plan.shelves;
-  }, [manual, byId, opts, plan]);
+  }, [manual, byId, planOpts, plan]);
 
   const bays = useMemo(() => {
     const m = new Map<number, PlannedShelf[]>();
@@ -254,6 +276,9 @@ export default function ShelfPage() {
           ← Library
         </Link>
         <h1>Shelf Plan</h1>
+        <Link href="/room" className="nav-room no-print">
+          🗺 Room Planner
+        </Link>
         <button className="nav-print" onClick={() => window.print()}>
           🖨 Print
         </button>
@@ -317,7 +342,23 @@ export default function ShelfPage() {
             <label className="checkbox custom-toggle">
               <input
                 type="checkbox"
+                checked={useRoom}
+                disabled={!room || room.furniture.length === 0}
+                onChange={(e) => setUseRoom(e.target.checked)}
+              />
+              Use my room layout{" "}
+              <Link href="/room" className="inline-link">
+                {room && room.furniture.length
+                  ? `(${room.furniture.length} pieces · edit)`
+                  : "(set one up)"}
+              </Link>
+            </label>
+
+            <label className="checkbox custom-toggle">
+              <input
+                type="checkbox"
                 checked={Boolean(customBays)}
+                disabled={useRoom}
                 onChange={(e) =>
                   setBays(e.target.checked ? SAMPLE_WALL : undefined)
                 }

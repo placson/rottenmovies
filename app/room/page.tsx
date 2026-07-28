@@ -1,0 +1,490 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import {
+  DEFAULT_ROOM,
+  makeFurniture,
+  footprint,
+  autoOrder,
+  type Room,
+  type Furniture,
+  type FurnitureKind,
+  type Rotation,
+  type Unit,
+} from "@/lib/room";
+
+const KIND_COLORS: Record<FurnitureKind, string> = {
+  bookcase: "#8a5a34",
+  short: "#b07a45",
+  corner: "#6d4b2f",
+  tower: "#4f7a86",
+};
+
+const nextRotation = (r: Rotation): Rotation =>
+  (((r + 90) % 360) as Rotation);
+
+export default function RoomPlanner() {
+  const [room, setRoom] = useState<Room>(DEFAULT_ROOM);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [dirty, setDirty] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/room", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.room) setRoom(d.room);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const mutate = useCallback((next: Room) => {
+    setRoom(next);
+    setDirty(true);
+  }, []);
+
+  const patchFurniture = useCallback(
+    (id: string, patch: Partial<Furniture>) =>
+      mutate({
+        ...room,
+        furniture: room.furniture.map((f) =>
+          f.id === id ? { ...f, ...patch } : f
+        ),
+      }),
+    [room, mutate]
+  );
+
+  const selected = room.furniture.find((f) => f.id === selectedId) ?? null;
+
+  // Fit the whole room into a comfortable canvas.
+  const scale = useMemo(
+    () => Math.max(2, Math.min(720 / room.width, 480 / room.length)),
+    [room.width, room.length]
+  );
+  const unitLabel = room.unit;
+
+  const addPiece = (kind: FurnitureKind) => {
+    const order =
+      room.furniture.reduce((m, f) => Math.max(m, f.order), 0) + 1;
+    const piece = makeFurniture(kind, room.unit, order);
+    mutate({ ...room, furniture: [...room.furniture, piece] });
+    setSelectedId(piece.id);
+  };
+
+  const removePiece = (id: string) => {
+    mutate({ ...room, furniture: room.furniture.filter((f) => f.id !== id) });
+    if (selectedId === id) setSelectedId(null);
+  };
+
+  const toUnitCoords = (clientX: number, clientY: number) => {
+    const svg = svgRef.current!;
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: ((clientX - rect.left) / rect.width) * room.width,
+      y: ((clientY - rect.top) / rect.height) * room.length,
+    };
+  };
+
+  const onPiecePointerDown = (e: React.PointerEvent, f: Furniture) => {
+    e.preventDefault();
+    setSelectedId(f.id);
+    const p = toUnitCoords(e.clientX, e.clientY);
+    drag.current = { id: f.id, dx: p.x - f.x, dy: p.y - f.y };
+    svgRef.current?.setPointerCapture(e.pointerId);
+  };
+
+  const onSvgPointerMove = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    const d = drag.current;
+    const f = room.furniture.find((x) => x.id === d.id);
+    if (!f) return;
+    const p = toUnitCoords(e.clientX, e.clientY);
+    const { w, h } = footprint(f);
+    let nx = Math.round(p.x - d.dx);
+    let ny = Math.round(p.y - d.dy);
+    // clamp inside the room
+    nx = Math.max(0, Math.min(room.width - w, nx));
+    ny = Math.max(0, Math.min(room.length - h, ny));
+    // snap to walls within ~3 units
+    const snap = 3;
+    if (nx < snap) nx = 0;
+    if (room.width - (nx + w) < snap) nx = room.width - w;
+    if (ny < snap) ny = 0;
+    if (room.length - (ny + h) < snap) ny = room.length - h;
+    patchFurniture(d.id, { x: nx, y: ny });
+  };
+
+  const onSvgPointerUp = (e: React.PointerEvent) => {
+    drag.current = null;
+    try {
+      svgRef.current?.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const setUnit = (unit: Unit) => {
+    if (unit === room.unit) return;
+    const k = unit === "cm" ? 2.54 : 1 / 2.54; // in→cm or cm→in
+    const c = (n: number) => Math.round(n * k * 10) / 10;
+    mutate({
+      unit,
+      width: c(room.width),
+      length: c(room.length),
+      furniture: room.furniture.map((f) => ({
+        ...f,
+        x: c(f.x),
+        y: c(f.y),
+        width: c(f.width),
+        depth: c(f.depth),
+        height: c(f.height),
+      })),
+    });
+  };
+
+  const save = useCallback(async () => {
+    setStatus("Saving…");
+    try {
+      const res = await fetch("/api/room", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room }),
+      });
+      if (!res.ok) throw new Error();
+      setDirty(false);
+      setStatus("Saved");
+      window.setTimeout(() => setStatus(null), 1800);
+    } catch {
+      setStatus("Could not save");
+    }
+  }, [room]);
+
+  // Autosave shortly after edits settle.
+  useEffect(() => {
+    if (!dirty) return;
+    const t = window.setTimeout(save, 1500);
+    return () => window.clearTimeout(t);
+  }, [dirty, save]);
+
+  const frontEdge = (f: Furniture) => {
+    // Colored strip on the "front" (opening) side, based on rotation.
+    const { w, h } = footprint(f);
+    const t = Math.max(1.2, Math.min(w, h) * 0.12);
+    switch (f.rotation) {
+      case 0:
+        return { x: f.x, y: f.y + h - t, w, h: t };
+      case 180:
+        return { x: f.x, y: f.y, w, h: t };
+      case 90:
+        return { x: f.x, y: f.y, w: t, h };
+      case 270:
+      default:
+        return { x: f.x + w - t, y: f.y, w: t, h };
+    }
+  };
+
+  return (
+    <main className="page room-page">
+      <nav className="subnav">
+        <Link href="/shelf" className="nav-back">
+          ← Shelf Plan
+        </Link>
+        <h1>Room Planner</h1>
+        <button className="nav-print" onClick={save} disabled={!dirty}>
+          {status ?? (dirty ? "Save" : "Saved")}
+        </button>
+      </nav>
+
+      {loading ? (
+        <p className="empty">Loading your room…</p>
+      ) : (
+        <>
+          <div className="room-toolbar">
+            <div className="room-size">
+              <label>
+                Room width ({unitLabel})
+                <input
+                  type="number"
+                  value={room.width}
+                  min={12}
+                  onChange={(e) =>
+                    mutate({ ...room, width: Number(e.target.value) || room.width })
+                  }
+                />
+              </label>
+              <label>
+                Room length ({unitLabel})
+                <input
+                  type="number"
+                  value={room.length}
+                  min={12}
+                  onChange={(e) =>
+                    mutate({
+                      ...room,
+                      length: Number(e.target.value) || room.length,
+                    })
+                  }
+                />
+              </label>
+              <div className="unit-toggle">
+                <button
+                  className={room.unit === "in" ? "on" : ""}
+                  onClick={() => setUnit("in")}
+                >
+                  in
+                </button>
+                <button
+                  className={room.unit === "cm" ? "on" : ""}
+                  onClick={() => setUnit("cm")}
+                >
+                  cm
+                </button>
+              </div>
+            </div>
+
+            <div className="palette">
+              <span className="palette-label">Add:</span>
+              <button onClick={() => addPiece("bookcase")}>＋ Bookcase</button>
+              <button onClick={() => addPiece("short")}>＋ Short</button>
+              <button onClick={() => addPiece("corner")}>＋ Corner</button>
+              <button onClick={() => addPiece("tower")}>＋ Tower</button>
+              <button
+                className="ghost"
+                onClick={() =>
+                  mutate({ ...room, furniture: autoOrder(room.furniture) })
+                }
+                disabled={room.furniture.length === 0}
+              >
+                Auto-order
+              </button>
+            </div>
+          </div>
+
+          <div className="planner">
+            <div className="canvas-wrap">
+              <svg
+                ref={svgRef}
+                className="room-svg"
+                width={room.width * scale}
+                height={room.length * scale}
+                viewBox={`0 0 ${room.width} ${room.length}`}
+                style={{ touchAction: "none" }}
+                onPointerMove={onSvgPointerMove}
+                onPointerUp={onSvgPointerUp}
+                onPointerDown={(e) => {
+                  if (e.target === svgRef.current) setSelectedId(null);
+                }}
+              >
+                <rect
+                  x={0}
+                  y={0}
+                  width={room.width}
+                  height={room.length}
+                  className="room-floor"
+                />
+                {room.furniture.map((f) => {
+                  const { w, h } = footprint(f);
+                  const fe = frontEdge(f);
+                  const isTower = f.kind === "tower";
+                  const sel = f.id === selectedId;
+                  return (
+                    <g
+                      key={f.id}
+                      onPointerDown={(e) => onPiecePointerDown(e, f)}
+                      className={`piece ${sel ? "sel" : ""}`}
+                    >
+                      {isTower ? (
+                        <ellipse
+                          cx={f.x + w / 2}
+                          cy={f.y + h / 2}
+                          rx={w / 2}
+                          ry={h / 2}
+                          fill={KIND_COLORS[f.kind]}
+                          stroke={sel ? "#fff" : "#00000055"}
+                          strokeWidth={sel ? 1.5 : 0.6}
+                        />
+                      ) : (
+                        <>
+                          <rect
+                            x={f.x}
+                            y={f.y}
+                            width={w}
+                            height={h}
+                            rx={1}
+                            fill={KIND_COLORS[f.kind]}
+                            stroke={sel ? "#fff" : "#00000055"}
+                            strokeWidth={sel ? 1.5 : 0.6}
+                          />
+                          <rect
+                            x={fe.x}
+                            y={fe.y}
+                            width={fe.w}
+                            height={fe.h}
+                            fill="#ffd9a0"
+                            opacity={0.9}
+                          />
+                        </>
+                      )}
+                      <circle
+                        cx={f.x + w / 2}
+                        cy={f.y + h / 2}
+                        r={Math.min(w, h) * 0.28}
+                        fill="#0009"
+                      />
+                      <text
+                        x={f.x + w / 2}
+                        y={f.y + h / 2}
+                        className="piece-order"
+                        fontSize={Math.min(w, h) * 0.32}
+                      >
+                        {f.order}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+              <p className="canvas-hint">
+                Drag pieces to place them · the light edge is the shelf front ·
+                numbers are the fill order
+              </p>
+            </div>
+
+            <aside className="props">
+              {selected ? (
+                <>
+                  <div className="props-head">
+                    <input
+                      className="props-label"
+                      value={selected.label}
+                      onChange={(e) =>
+                        patchFurniture(selected.id, { label: e.target.value })
+                      }
+                    />
+                    <button
+                      className="props-del"
+                      onClick={() => removePiece(selected.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+
+                  <div className="props-grid">
+                    <label>
+                      Width ({unitLabel})
+                      <input
+                        type="number"
+                        value={selected.width}
+                        onChange={(e) =>
+                          patchFurniture(selected.id, {
+                            width: Number(e.target.value) || 1,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Depth ({unitLabel})
+                      <input
+                        type="number"
+                        value={selected.depth}
+                        onChange={(e) =>
+                          patchFurniture(selected.id, {
+                            depth: Number(e.target.value) || 1,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Height ({unitLabel})
+                      <input
+                        type="number"
+                        value={selected.height}
+                        onChange={(e) =>
+                          patchFurniture(selected.id, {
+                            height: Number(e.target.value) || 1,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Shelves
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={selected.shelves}
+                        onChange={(e) =>
+                          patchFurniture(selected.id, {
+                            shelves: Number(e.target.value) || 1,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Fill order
+                      <input
+                        type="number"
+                        min={1}
+                        value={selected.order}
+                        onChange={(e) =>
+                          patchFurniture(selected.id, {
+                            order: Number(e.target.value) || 1,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="checkbox">
+                      <input
+                        type="checkbox"
+                        checked={selected.extension}
+                        onChange={(e) =>
+                          patchFurniture(selected.id, {
+                            extension: e.target.checked,
+                          })
+                        }
+                      />
+                      Top extension
+                    </label>
+                  </div>
+
+                  <div className="props-actions">
+                    <button
+                      onClick={() =>
+                        patchFurniture(selected.id, {
+                          rotation: nextRotation(selected.rotation),
+                        })
+                      }
+                    >
+                      ⟳ Rotate ({selected.rotation}°)
+                    </button>
+                    <span className="usable">
+                      Usable shelf: {selected.width} {unitLabel} ×{" "}
+                      {selected.shelves + (selected.extension ? 1 : 0)} shelves
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <p className="props-empty">
+                  Add a bookcase, then select it to set exact measurements and
+                  its place in the fill order.
+                </p>
+              )}
+            </aside>
+          </div>
+
+          <p className="note">
+            {room.furniture.length} piece
+            {room.furniture.length === 1 ? "" : "s"} placed. Turn on{" "}
+            <strong>“Use my room layout”</strong> on the{" "}
+            <Link href="/shelf">Shelf Plan</Link> to arrange your books onto
+            these shelves in this order.
+          </p>
+        </>
+      )}
+    </main>
+  );
+}
