@@ -1,106 +1,140 @@
-# Rotten Tomatoes Parser
+# 📚 Book Library Scanner
 
-## Description
+A phone-friendly **Progressive Web App (PWA)** for building your personal book
+library — like [Libib](https://www.libib.com/) or
+[LibraryThing](https://www.librarything.com/), but yours.
 
-Dear user,
+Open it on your phone, tap **Scan**, point the camera at a book's barcode, and
+the book is looked up and saved to your library on a remote
+[Vercel](https://vercel.com) site. No app store, no install — just "Add to Home
+Screen" and it behaves like a native app.
 
-This is a very simple HTML scraper using BeautifulSoup4 in Python3.
+## How it works
 
-It must be understood that Rotten Tomatoes does not have an official API 
-and so we poor developers are forced to write these silly screen scrapers
-to fetch valuable movie information.
+```
+ 📱 Phone camera  ──scan ISBN──▶  Vercel (Next.js)  ──lookup──▶  Open Library / Google Books
+        │                              │
+        └──────── your library ◀───────┴──────▶  Neon Postgres (persistent storage)
+```
 
-This means that every few years (or months?) Rotten Tomatoes may change
-their UI and therefore break this simple tool. Feel free modify for your
-specific use!
+- **Scanning** happens in the browser using your phone's camera
+  ([ZXing](https://github.com/zxing-js/library) decodes EAN-13 / ISBN barcodes).
+- **Lookup** hits [Open Library](https://openlibrary.org/) first (no API key),
+  then falls back to [Google Books](https://developers.google.com/books) — no
+  keys required.
+- **Storage** is a Postgres database (Neon, Vercel's native Postgres) so your
+  library persists and is available on every device.
 
-Sincerely,
-Patrick Lacson
+## Features
 
+- 📷 Live camera barcode scanning (auto-detects, with haptic feedback)
+- ⌨️ Manual ISBN entry as a fallback
+- 🔎 Search your library by title, author, or ISBN
+- 🖼️ Automatic cover art, author, year, and page count
+- 🗑️ Remove books; duplicates are detected by ISBN
+- 📲 Installable PWA with offline shell + app icon
 
-## Installation
+## Tech stack
 
-Instructions on how to install the project and its dependencies.
+| Piece      | Choice                                   |
+| ---------- | ---------------------------------------- |
+| Framework  | Next.js 16 (App Router) + React 19       |
+| Hosting    | Vercel                                   |
+| Database   | Neon Postgres (`@neondatabase/serverless`) |
+| Scanning   | `@zxing/browser` + `@zxing/library`      |
+| Book data  | Open Library API, Google Books API       |
+
+---
+
+## Deploy to Vercel (≈5 minutes)
+
+### 1. Push this repo to GitHub
+It's already committed on the `claude/barcode-book-library-app-xkun1c` branch.
+
+### 2. Import into Vercel
+- Go to [vercel.com/new](https://vercel.com/new) and import the repository.
+- Vercel auto-detects Next.js — no build settings to change. Click **Deploy**.
+
+### 3. Add a database (so your library persists)
+- In your new Vercel project: **Storage → Create Database → Neon (Postgres)**.
+- Vercel automatically injects the connection env vars (`DATABASE_URL`,
+  `POSTGRES_URL`, etc.) into the project.
+- **Redeploy** once (Deployments → ⋯ → Redeploy) so the app picks up the vars.
+
+The `books` table is created automatically on first use — nothing to run by hand.
+
+> **Without a database** the app still runs, but it uses a temporary file store
+> that is wiped on every serverless cold start — fine for a quick demo, not for
+> keeping a real library. Add the Neon database for persistence.
+
+### 4. Install it on your phone
+- Open your Vercel URL (e.g. `https://your-app.vercel.app`) on your phone.
+- **iPhone (Safari):** Share → *Add to Home Screen*.
+- **Android (Chrome):** menu → *Install app* / *Add to Home Screen*.
+- Launch it from the home screen, allow camera access, and start scanning.
+
+> 📸 Camera scanning requires **HTTPS**, which Vercel provides automatically.
+> It will not work over plain `http://` (except on `localhost`).
+
+---
+
+## Run locally
 
 ```bash
-pip install -r requirements.txt
+npm install
+npm run dev
+# open http://localhost:3000
 ```
 
-## Run
-./rotten.py
+Locally, with no database configured, books are saved to `./.data/books.json`
+(git-ignored). To test against a real database locally, put a connection string
+in `.env.local`:
 
-## Output
-```
-$ ./rotten.py 
-Search Rotten Tomatoes database: no country for old men
- ------------------------------------------- 
-title: No Country for Old Men
-cast: Tommy Lee Jones,Javier Bardem,Josh Brolin
-release year: 2007
-rating: R
-director(s): Joel Coen,Ethan Coen
-tomatometer score: 93%
-popcorn score: 86%
-synopsis: While out hunting, Llewelyn Moss (Josh Brolin) finds the grisly aftermath of a drug deal. Though he knows better, he cannot resist the cash left behind and takes it with him. The hunter becomes the hunted when a merciless killer named Chigurh (Javier Bardem) picks up his trail. Also looking for Moss is Sheriff Bell (Tommy Lee Jones), an aging lawman who reflects on a changing world and a dark secret of his own, as he tries to find and protect Moss.
+```bash
+DATABASE_URL="postgres://user:pass@host/db?sslmode=require"
 ```
 
-Or your query may return multiple results
+Camera scanning works on `http://localhost` in dev; on other origins you need
+HTTPS. Use the **Enter ISBN manually** field to test without a camera.
+
+## Project structure
 
 ```
-$ ./rotten.py 
-Search Rotten Tomatoes database: lethal weapon
- ------------------------------------------- 
-title: Lethal Weapon
-cast: Mel Gibson,Danny Glover,Gary Busey
-release year: 1987
-rating: R
-director(s): Richard Donner
-tomatometer score: 80%
-popcorn score: 86%
-synopsis: Following the death of his wife, Los Angeles police detective Martin Riggs (Mel Gibson) becomes reckless and suicidal. When he is reassigned and partnered with Roger Murtaugh (Danny Glover), Riggs immediately clashes with the older officer. Together they uncover a massive drug-trafficking ring. As they encounter increasingly dangerous situations, Riggs and Murtaugh begin to form a bond. Riggs' volatile behavior might just help them apprehend the criminals -- if it doesn't kill them both first.
- ------------------------------------------- 
-title: Lethal Weapon 2
-cast: Mel Gibson,Danny Glover,Joe Pesci
-release year: 1989
-rating: R
-director(s): Richard Donner
-tomatometer score: 82%
-popcorn score: 78%
-synopsis: South African smugglers find themselves being hounded and harassed by Riggs and Murtaugh, two mismatched Los Angeles police officers. However, the South Africans are protected by diplomatic immunity, and so the two are assigned to witness-protection duty in an attempt by their captain to keep his job. It is only when this witness reveals to them that he has already dealt with the smugglers that the trouble really starts.
- ------------------------------------------- 
-title: Lethal Weapon 4
-cast: Mel Gibson,Danny Glover,Joe Pesci
-release year: 1998
-rating: R
-director(s): Richard Donner
-tomatometer score: 52%
-popcorn score: 64%
-synopsis: Detective Riggs (Mel Gibson) tries to settle down with his pregnant girlfriend, Lorna (Rene Russo), while his partner, Murtaugh (Danny Glover), comes to grips with the marriage of his pregnant daughter, Rianne (Traci Wolfe), to fellow cop Butters (Chris Rock). But they find themselves and their families targeted by Chinese mobsters, led by Wah Sing Ku (Jet Li). Riggs, Murtaugh, Butters and private eye Getz (Joe Pesci) decide to go on the offensive before the gangsters get to their loved ones.
- ------------------------------------------- 
-title: Lethal Weapon 3
-cast: Mel Gibson,Danny Glover,Joe Pesci
-release year: 1992
-rating: R
-director(s): Richard Donner
-tomatometer score: 60%
-popcorn score: 61%
-synopsis: Veteran police detective Roger Murtaugh (Danny Glover) is only days away from retiring when he and his tough partner, Martin Riggs (Mel Gibson), are roped into an important internal affairs case. Working with the beautiful, no-nonsense Sergeant Lorna Cole (Rene Russo) and aided by the shifty informant Leo Getz (Joe Pesci), Murtaugh and Riggs begin to close in on a black-market weapons operation involving corrupt cop and arms dealer Jack Travis (Stuart Wilson).
- ------------------------------------------- 
-title: The lethal weapon
-cast: 
-release year: 2015
-rating: n/a
-directors(s): n/a
-tomatometer score: n/a
-popcorn score: n/a
-synopsis: 
- ------------------------------------------- 
-title: Deadly Weapon
-cast: Rodney Eastman,Kim Walker,Gary Frank
-release year: 1988
-rating: PG-13
-director(s): Michael Miner
-tomatometer score: n/a
-popcorn score: 40%
-synopsis: A bullied teen (Rodney Eastman) gains a girlfriend (Kim Walker) and respect with a ray gun the U.S. government wants back.
+app/
+  layout.tsx              app shell + PWA metadata
+  page.tsx                library UI + scanning flow
+  globals.css             styles
+  api/books/route.ts      GET list · POST add-by-ISBN (lookup + store)
+  api/books/[id]/route.ts DELETE a book
+components/
+  Scanner.tsx             camera barcode scanner (client-only)
+lib/
+  books.ts                ISBN normalization + Open Library / Google Books lookup
+  db.ts                   storage (Neon Postgres, file-store fallback)
+public/
+  manifest.webmanifest    PWA manifest
+  icon.svg                app icon
+  sw.js                   service worker (installability + offline shell)
 ```
+
+## API
+
+| Method   | Route             | Body            | Description                          |
+| -------- | ----------------- | --------------- | ------------------------------------ |
+| `GET`    | `/api/books`      | —               | List your library                    |
+| `POST`   | `/api/books`      | `{ "isbn": …}`  | Look up an ISBN and add it           |
+| `DELETE` | `/api/books/:id`  | —               | Remove a book                        |
+
+## Notes on dependencies
+
+`npm audit` reports advisories in `postcss` and `sharp`, which are transitive
+dependencies pulled in by Next.js itself. They aren't reachable in this app:
+the CSS is first-party (the `postcss` advisories concern malicious CSS source
+maps) and the app doesn't use `next/image`, so `sharp` never processes any
+image. They'll clear when Next bumps its internal pins; do **not** run
+`npm audit fix --force`, which tries to downgrade Next.js to v9.
+
+---
+
+_This app was added to a repository that previously contained a small Rotten
+Tomatoes scraper (`rotten.py`); that file is unrelated and left untouched._
