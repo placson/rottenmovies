@@ -29,9 +29,17 @@ Screen" and it behaves like a native app.
 
 - 📷 Live camera barcode scanning (auto-detects, with haptic feedback)
 - ⌨️ Manual ISBN entry as a fallback
-- 🔎 Search your library by title, author, or ISBN
+- 🏷️ **Categories** — a theology-aware taxonomy (Systematic/Biblical Theology,
+  Church History, NT/OT Commentaries, Christian Living, Spiritual Warfare,
+  Fiction, Finances, and more). Each book is **auto-classified on add**, and you
+  can **override with multiple categories** in the editor.
+- 🗂️ **Filter** the library by category (with live counts) and search by title,
+  author, ISBN, or category
+- ⭐ **Your 5-star rating**, plus **Goodreads link + Goodreads rating**
+- 📅 **Reading dates** — date added, date started, date finished (with a
+  Reading / Read badge on each cover)
 - 🖼️ Automatic cover art, author, year, and page count
-- 🗑️ Remove books; duplicates are detected by ISBN
+- ✏️ Tap any book to edit; duplicates are detected by ISBN
 - 📲 Installable PWA with offline shell + app icon
 
 ## Tech stack
@@ -104,12 +112,14 @@ app/
   layout.tsx              app shell + PWA metadata
   page.tsx                library UI + scanning flow
   globals.css             styles
-  api/books/route.ts      GET list · POST add-by-ISBN (lookup + store)
-  api/books/[id]/route.ts DELETE a book
+  api/books/route.ts      GET list · POST add-by-ISBN (lookup + classify + store)
+  api/books/[id]/route.ts PATCH edits · DELETE a book
 components/
   Scanner.tsx             camera barcode scanner (client-only)
+  BookEditor.tsx          edit modal: categories, rating, dates, Goodreads
 lib/
   books.ts                ISBN normalization + Open Library / Google Books lookup
+  categories.ts           category taxonomy + keyword auto-classifier
   db.ts                   storage (Neon Postgres, file-store fallback)
 public/
   manifest.webmanifest    PWA manifest
@@ -119,11 +129,18 @@ public/
 
 ## API
 
-| Method   | Route             | Body            | Description                          |
-| -------- | ----------------- | --------------- | ------------------------------------ |
-| `GET`    | `/api/books`      | —               | List your library                    |
-| `POST`   | `/api/books`      | `{ "isbn": …}`  | Look up an ISBN and add it           |
-| `DELETE` | `/api/books/:id`  | —               | Remove a book                        |
+| Method   | Route             | Body                          | Description                              |
+| -------- | ----------------- | ----------------------------- | ---------------------------------------- |
+| `GET`    | `/api/books`      | —                             | List your library                        |
+| `POST`   | `/api/books`      | `{ "isbn": …}`                | Look up an ISBN, auto-classify, and add  |
+| `PATCH`  | `/api/books/:id`  | `{ categories, rating, … }`   | Update categories, rating, dates, Goodreads |
+| `DELETE` | `/api/books/:id`  | —                             | Remove a book                            |
+
+### Goodreads note
+
+Goodreads shut down its public API in 2020, so ratings can't be fetched
+automatically. On add, each book gets a Goodreads **search link** for its ISBN;
+open it, and type the community rating (and/or your review link) into the editor.
 
 ## Notes on dependencies
 

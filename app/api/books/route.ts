@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { addBook, getBooks } from "@/lib/db";
 import { lookupIsbn, normalizeIsbn, isValidIsbn } from "@/lib/books";
+import { guessCategories } from "@/lib/categories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +44,26 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
-    const { book, created } = await addBook(data);
+
+    // Best-guess a single category; the user can refine in the editor.
+    const guessed = guessCategories({
+      title: data.title,
+      authors: data.authors,
+      subjects: data.subjects,
+      description: data.description,
+    });
+
+    const { book, created } = await addBook({
+      isbn: data.isbn,
+      title: data.title,
+      authors: data.authors,
+      cover_url: data.cover_url,
+      published: data.published,
+      publisher: data.publisher,
+      page_count: data.page_count,
+      categories: guessed.slice(0, 1),
+      goodreads_url: `https://www.goodreads.com/search?q=${data.isbn}`,
+    });
     return NextResponse.json({ book, created }, { status: created ? 201 : 200 });
   } catch (err) {
     console.error("POST /api/books failed", err);

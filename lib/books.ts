@@ -1,6 +1,16 @@
-import type { NewBook } from "./db";
-
-export type BookData = Omit<NewBook, never>;
+/** Metadata resolved from an ISBN, plus subjects/description used to
+ *  auto-classify the book into a category. */
+export type LookupResult = {
+  isbn: string;
+  title: string;
+  authors: string;
+  cover_url: string | null;
+  published: string | null;
+  publisher: string | null;
+  page_count: number | null;
+  subjects: string[];
+  description: string | null;
+};
 
 /**
  * Turn whatever the scanner or user gives us into a clean ISBN.
@@ -41,13 +51,15 @@ export function isValidIsbn(isbn: string): boolean {
  * Look up book metadata for an ISBN.
  * Tries Open Library first (no API key), then falls back to Google Books.
  */
-export async function lookupIsbn(rawIsbn: string): Promise<BookData | null> {
+export async function lookupIsbn(
+  rawIsbn: string
+): Promise<LookupResult | null> {
   const isbn = normalizeIsbn(rawIsbn);
   if (!isValidIsbn(isbn)) return null;
   return (await fromOpenLibrary(isbn)) ?? (await fromGoogleBooks(isbn));
 }
 
-async function fromOpenLibrary(isbn: string): Promise<BookData | null> {
+async function fromOpenLibrary(isbn: string): Promise<LookupResult | null> {
   try {
     const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
     const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -65,6 +77,16 @@ async function fromOpenLibrary(isbn: string): Promise<BookData | null> {
       ? entry.publishers.map((p: any) => p.name).filter(Boolean).join(", ")
       : null;
 
+    // Collect every subject-like tag Open Library exposes, for classification.
+    const subjects: string[] = [
+      ...(entry.subjects ?? []),
+      ...(entry.subject_people ?? []),
+      ...(entry.subject_places ?? []),
+      ...(entry.subject_times ?? []),
+    ]
+      .map((s: any) => (typeof s === "string" ? s : s?.name))
+      .filter(Boolean);
+
     return {
       isbn,
       title: String(entry.title),
@@ -76,13 +98,18 @@ async function fromOpenLibrary(isbn: string): Promise<BookData | null> {
         typeof entry.number_of_pages === "number"
           ? entry.number_of_pages
           : null,
+      subjects,
+      description:
+        typeof entry.notes === "string"
+          ? entry.notes
+          : entry.notes?.value ?? null,
     };
   } catch {
     return null;
   }
 }
 
-async function fromGoogleBooks(isbn: string): Promise<BookData | null> {
+async function fromGoogleBooks(isbn: string): Promise<LookupResult | null> {
   try {
     const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
     const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -104,6 +131,8 @@ async function fromGoogleBooks(isbn: string): Promise<BookData | null> {
       published: info.publishedDate ? String(info.publishedDate) : null,
       publisher: info.publisher ? String(info.publisher) : null,
       page_count: typeof info.pageCount === "number" ? info.pageCount : null,
+      subjects: Array.isArray(info.categories) ? info.categories : [],
+      description: info.description ? String(info.description) : null,
     };
   } catch {
     return null;

@@ -4,10 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Book } from "@/lib/db";
 
-// Scanner touches the camera API, so only load it in the browser.
+// These touch browser-only APIs, so load them client-side only.
 const Scanner = dynamic(() => import("@/components/Scanner"), { ssr: false });
+const BookEditor = dynamic(() => import("@/components/BookEditor"), {
+  ssr: false,
+});
 
 type Toast = { text: string; kind: "ok" | "err" } | null;
+
+function readingStatus(b: Book): "read" | "reading" | "unread" {
+  if (b.date_finished) return "read";
+  if (b.date_started) return "reading";
+  return "unread";
+}
 
 export default function Home() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -15,6 +24,8 @@ export default function Home() {
   const [scanning, setScanning] = useState(false);
   const [manualIsbn, setManualIsbn] = useState("");
   const [query, setQuery] = useState("");
+  const [activeCat, setActiveCat] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Book | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
 
@@ -82,32 +93,39 @@ export default function Home() {
     [addByIsbn]
   );
 
-  const removeBook = useCallback(
-    async (book: Book) => {
-      if (!confirm(`Remove “${book.title}” from your library?`)) return;
-      const prev = books;
-      setBooks((b) => b.filter((x) => x.id !== book.id));
-      try {
-        const res = await fetch(`/api/books/${book.id}`, { method: "DELETE" });
-        if (!res.ok) throw new Error();
-      } catch {
-        setBooks(prev); // roll back
-        showToast("Couldn't remove that book.", "err");
-      }
-    },
-    [books, showToast]
+  // Category → count, for the filter bar.
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of books) {
+      for (const c of b.categories) counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [books]);
+
+  const uncategorizedCount = useMemo(
+    () => books.filter((b) => b.categories.length === 0).length,
+    [books]
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return books;
-    return books.filter(
-      (b) =>
+    return books.filter((b) => {
+      if (activeCat === "__uncat__" && b.categories.length > 0) return false;
+      if (
+        activeCat &&
+        activeCat !== "__uncat__" &&
+        !b.categories.includes(activeCat)
+      )
+        return false;
+      if (!q) return true;
+      return (
         b.title.toLowerCase().includes(q) ||
         b.authors.toLowerCase().includes(q) ||
-        b.isbn.includes(q)
-    );
-  }, [books, query]);
+        b.isbn.includes(q) ||
+        b.categories.some((c) => c.toLowerCase().includes(q))
+      );
+    });
+  }, [books, query, activeCat]);
 
   return (
     <main className="page">
@@ -151,12 +169,40 @@ export default function Home() {
         {books.length > 0 && (
           <input
             className="search"
-            placeholder="Search your library…"
+            placeholder="Search title, author, ISBN, category…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         )}
       </div>
+
+      {(categoryCounts.length > 0 || uncategorizedCount > 0) && (
+        <div className="cat-bar">
+          <button
+            className={`cat-filter ${activeCat === null ? "on" : ""}`}
+            onClick={() => setActiveCat(null)}
+          >
+            All <span className="n">{books.length}</span>
+          </button>
+          {categoryCounts.map(([cat, n]) => (
+            <button
+              key={cat}
+              className={`cat-filter ${activeCat === cat ? "on" : ""}`}
+              onClick={() => setActiveCat(cat)}
+            >
+              {cat} <span className="n">{n}</span>
+            </button>
+          ))}
+          {uncategorizedCount > 0 && (
+            <button
+              className={`cat-filter ${activeCat === "__uncat__" ? "on" : ""}`}
+              onClick={() => setActiveCat("__uncat__")}
+            >
+              Uncategorized <span className="n">{uncategorizedCount}</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <p className="empty">Loading your library…</p>
@@ -165,48 +211,87 @@ export default function Home() {
           {books.length === 0 ? (
             <>
               <p className="empty-title">Your shelf is empty</p>
-              <p>Tap <strong>Scan</strong> and point your camera at a book&rsquo;s barcode.</p>
+              <p>
+                Tap <strong>Scan</strong> and point your camera at a
+                book&rsquo;s barcode.
+              </p>
             </>
           ) : (
-            <p>No books match “{query}”.</p>
+            <p>Nothing matches the current filter.</p>
           )}
         </div>
       ) : (
         <ul className="grid">
-          {filtered.map((book) => (
-            <li key={book.id} className="card">
-              <div className="cover">
-                {book.cover_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={book.cover_url} alt={book.title} loading="lazy" />
-                ) : (
-                  <div className="cover-fallback">{book.title.slice(0, 1)}</div>
-                )}
-              </div>
-              <div className="meta">
-                <p className="title" title={book.title}>
-                  {book.title}
-                </p>
-                {book.authors && <p className="authors">{book.authors}</p>}
-                <p className="sub">
-                  {book.published ? book.published.slice(0, 4) : ""}
-                  {book.page_count ? ` · ${book.page_count} pp` : ""}
-                </p>
-              </div>
-              <button
-                className="remove"
-                onClick={() => removeBook(book)}
-                aria-label={`Remove ${book.title}`}
+          {filtered.map((book) => {
+            const status = readingStatus(book);
+            return (
+              <li
+                key={book.id}
+                className="card"
+                onClick={() => setEditing(book)}
               >
-                ✕
-              </button>
-            </li>
-          ))}
+                <div className="cover">
+                  {book.cover_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={book.cover_url} alt={book.title} loading="lazy" />
+                  ) : (
+                    <div className="cover-fallback">
+                      {book.title.slice(0, 1)}
+                    </div>
+                  )}
+                  {status !== "unread" && (
+                    <span className={`status-badge ${status}`}>
+                      {status === "read" ? "Read" : "Reading"}
+                    </span>
+                  )}
+                </div>
+                <div className="meta">
+                  <p className="title" title={book.title}>
+                    {book.title}
+                  </p>
+                  {book.authors && <p className="authors">{book.authors}</p>}
+                  {book.rating ? (
+                    <p
+                      className="card-stars"
+                      aria-label={`${book.rating} of 5`}
+                    >
+                      {"★".repeat(book.rating)}
+                      <span className="off">
+                        {"★".repeat(5 - book.rating)}
+                      </span>
+                    </p>
+                  ) : null}
+                  {book.categories.length > 0 && (
+                    <p className="card-cat">{book.categories[0]}</p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
       {scanning && (
         <Scanner onDetected={onDetected} onClose={() => setScanning(false)} />
+      )}
+
+      {editing && (
+        <BookEditor
+          book={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            setBooks((prev) =>
+              prev.map((b) => (b.id === updated.id ? updated : b))
+            );
+            setEditing(null);
+            showToast("Saved", "ok");
+          }}
+          onDeleted={(id) => {
+            setBooks((prev) => prev.filter((b) => b.id !== id));
+            setEditing(null);
+            showToast("Removed", "ok");
+          }}
+        />
       )}
 
       {busy && <div className="busy-bar" aria-hidden />}
