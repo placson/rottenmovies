@@ -13,8 +13,12 @@ import {
   finalizeShelves,
   reconcileManual,
   planToRows,
+  SAMPLE_WALL,
+  BILLY_WIDE_CM,
+  BILLY_NARROW_CM,
   type ShelfOptions,
   type PlannedShelf,
+  type BayConfig,
 } from "@/lib/shelf";
 
 const BookEditor = nextDynamic(() => import("@/components/BookEditor"), {
@@ -143,19 +147,32 @@ export default function ShelfPage() {
   const shelvesPerBay = opts.shelvesPerBay + (opts.hasExtension ? 1 : 0);
   const capacityMm = opts.shelfWidthCm * 10;
   const totalLinearMm = displayShelves.reduce((s, sh) => s + sh.usedMm, 0);
-  const usedShelfCount = displayShelves.filter((s) => s.items.length > 0).length;
+  const usedShelves = displayShelves.filter((s) => s.items.length > 0);
+  const usedCapacityMm = usedShelves.reduce((s, sh) => s + sh.capacityMm, 0);
   const bayCount = displayShelves.length
     ? Math.max(...displayShelves.map((s) => s.bay)) + 1
     : 0;
-  const fillPct = usedShelfCount
-    ? Math.round((totalLinearMm / (usedShelfCount * capacityMm)) * 100)
+  const fillPct = usedCapacityMm
+    ? Math.round((totalLinearMm / usedCapacityMm) * 100)
     : 0;
   const uncategorized = books.filter((b) => b.categories.length === 0).length;
 
   const setOpt = <K extends keyof ShelfOptions>(k: K, v: ShelfOptions[K]) =>
     setOpts((o) => ({ ...o, [k]: v }));
 
-  const bayInnerWidth = capacityMm * scale;
+  /* ---- custom bookcase layout editing ---- */
+  const customBays = opts.bookcases;
+  const setBays = (next: BayConfig[] | undefined) =>
+    setOpts((o) => ({ ...o, bookcases: next }));
+  const updateBay = (i: number, patch: Partial<BayConfig>) =>
+    setBays((customBays ?? []).map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  const addBay = (widthCm: number) =>
+    setBays([
+      ...(customBays ?? []),
+      { widthCm, shelves: opts.shelvesPerBay, extension: opts.hasExtension },
+    ]);
+  const removeBay = (i: number) =>
+    setBays((customBays ?? []).filter((_, j) => j !== i));
 
   /* ---- drag to move ---- */
   const onSpineDragStart = (e: React.DragEvent, bookId: string) => {
@@ -287,35 +304,55 @@ export default function ShelfPage() {
 
           <details className="options no-print">
             <summary>Shelf &amp; sizing options</summary>
+
+            <label className="checkbox custom-toggle">
+              <input
+                type="checkbox"
+                checked={Boolean(customBays)}
+                onChange={(e) =>
+                  setBays(e.target.checked ? SAMPLE_WALL : undefined)
+                }
+              />
+              Match my actual bookcases (mixed widths)
+            </label>
+
             <div className="opt-grid">
-              <label>
-                Shelf width (cm)
-                <input
-                  type="number"
-                  min={30}
-                  max={120}
-                  value={opts.shelfWidthCm}
-                  onChange={(e) => setOpt("shelfWidthCm", Number(e.target.value) || 76)}
-                />
-              </label>
-              <label>
-                Main shelves / bay
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={opts.shelvesPerBay}
-                  onChange={(e) => setOpt("shelvesPerBay", Number(e.target.value) || 6)}
-                />
-              </label>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={opts.hasExtension}
-                  onChange={(e) => setOpt("hasExtension", e.target.checked)}
-                />
-                Top extension shelf
-              </label>
+              {!customBays && (
+                <>
+                  <label>
+                    Shelf width (cm)
+                    <input
+                      type="number"
+                      min={30}
+                      max={120}
+                      value={opts.shelfWidthCm}
+                      onChange={(e) =>
+                        setOpt("shelfWidthCm", Number(e.target.value) || 76)
+                      }
+                    />
+                  </label>
+                  <label>
+                    Main shelves / bay
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={opts.shelvesPerBay}
+                      onChange={(e) =>
+                        setOpt("shelvesPerBay", Number(e.target.value) || 6)
+                      }
+                    />
+                  </label>
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={opts.hasExtension}
+                      onChange={(e) => setOpt("hasExtension", e.target.checked)}
+                    />
+                    Top extension shelf
+                  </label>
+                </>
+              )}
               <label className="checkbox">
                 <input
                   type="checkbox"
@@ -351,6 +388,76 @@ export default function ShelfPage() {
                 />
               </label>
             </div>
+
+            {customBays && (
+              <div className="bay-editor">
+                <p className="bay-editor-hint">
+                  List your bookcases left → right (IKEA BILLY: wide = 76 cm,
+                  narrow = 36 cm, 6 shelves + 1 for the extension).
+                </p>
+                {customBays.map((b, i) => (
+                  <div className="bay-row" key={i}>
+                    <span className="bay-num">{i + 1}</span>
+                    <select
+                      value={b.widthCm}
+                      onChange={(e) =>
+                        updateBay(i, { widthCm: Number(e.target.value) })
+                      }
+                    >
+                      <option value={BILLY_WIDE_CM}>Wide 76 cm</option>
+                      <option value={BILLY_NARROW_CM}>Narrow 36 cm</option>
+                      {b.widthCm !== BILLY_WIDE_CM &&
+                        b.widthCm !== BILLY_NARROW_CM && (
+                          <option value={b.widthCm}>{b.widthCm} cm</option>
+                        )}
+                    </select>
+                    <label className="bay-shelves">
+                      shelves
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={b.shelves}
+                        onChange={(e) =>
+                          updateBay(i, {
+                            shelves: Number(e.target.value) || 6,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="bay-ext">
+                      <input
+                        type="checkbox"
+                        checked={b.extension}
+                        onChange={(e) =>
+                          updateBay(i, { extension: e.target.checked })
+                        }
+                      />
+                      ext
+                    </label>
+                    {b.label && <span className="bay-tag">{b.label}</span>}
+                    <button
+                      className="bay-del"
+                      onClick={() => removeBay(i)}
+                      aria-label="Remove bookcase"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div className="bay-add">
+                  <button onClick={() => addBay(BILLY_WIDE_CM)}>
+                    + Wide bay
+                  </button>
+                  <button onClick={() => addBay(BILLY_NARROW_CM)}>
+                    + Narrow bay
+                  </button>
+                  <button onClick={() => setBays(SAMPLE_WALL)}>
+                    Reset to my wall (4 wide + 3 narrow)
+                  </button>
+                </div>
+              </div>
+            )}
           </details>
 
           <div className="legend no-print">
@@ -367,16 +474,21 @@ export default function ShelfPage() {
 
           {/* ---- visual bookcases ---- */}
           <div className="wall no-print">
-            {bays.map((shelves, bi) => (
-              <div
-                className="bookcase"
-                key={bi}
-                style={{ width: bayInnerWidth + 26 }}
-              >
-                <div className="bay-label">Bookcase {bi + 1}</div>
-                <div className="bay-frame">
-                  {shelves.map((sh) => {
-                    const over = sh.usedMm > sh.capacityMm;
+            {bays.map((shelves, bi) => {
+              const bayCapMm = shelves[0]?.capacityMm ?? capacityMm;
+              const bayInnerWidth = bayCapMm * scale;
+              return (
+                <div
+                  className="bookcase"
+                  key={bi}
+                  style={{ width: bayInnerWidth + 26 }}
+                >
+                  <div className="bay-label">
+                    Bookcase {bi + 1} · {Math.round(bayCapMm / 10)} cm
+                  </div>
+                  <div className="bay-frame">
+                    {shelves.map((sh) => {
+                      const over = sh.usedMm > sh.capacityMm;
                     return (
                       <div
                         className={`shelf ${sh.isExtension ? "ext" : ""} ${
@@ -444,9 +556,10 @@ export default function ShelfPage() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* ---- printable shelf-by-shelf plan ---- */}

@@ -48,7 +48,9 @@ Screen" and it behaves like a native app.
   physically arrange your books, plus tunable shelf dimensions and paper
   thickness. Commentaries shelve in canonical Bible order (Genesis → Revelation).
   **Drag any spine** to move it between shelves; the custom arrangement is saved
-  (per browser) and overrides the auto plan until you reset it.
+  (per browser) and overrides the auto plan until you reset it. Supports
+  **mixed bookcase widths** — define each bay (e.g. IKEA BILLY wide 76 cm /
+  narrow 36 cm, 6 shelves + extension) so the plan mirrors a real wall.
 - 🖼️ Automatic cover art, author, year, and page count
 - ✏️ Tap any book to edit; duplicates are detected by ISBN
 - 📲 Installable PWA with offline shell + app icon

@@ -160,10 +160,19 @@ function authorSortKey(authors: string): string {
  * Spine width from page count                                         *
  * ------------------------------------------------------------------ */
 
+/** One physical bookcase (a "bay") along the wall, in order. */
+export type BayConfig = {
+  widthCm: number; // usable interior shelf width (Billy: 76 wide, 36 narrow)
+  shelves: number; // main shelves
+  extension: boolean; // top height-extension shelf
+  label?: string; // optional note, e.g. "corner"
+};
+
 export type ShelfOptions = {
-  shelfWidthCm: number; // usable interior width of one shelf
+  shelfWidthCm: number; // usable interior width (uniform mode)
   shelvesPerBay: number; // main shelves (Billy ≈ 6)
   hasExtension: boolean; // add a top extension shelf per bay
+  bookcases?: BayConfig[]; // when set, overrides the uniform bay settings
   mmPerPage: number; // paper bulk
   coverMm: number; // covers/boards allowance
   defaultPages: number; // when a book has no page count
@@ -183,6 +192,60 @@ export const DEFAULT_OPTIONS: ShelfOptions = {
   maxSpineMm: 65,
   sectionStartsNewShelf: true,
 };
+
+/** Exact IKEA BILLY interior widths, for presets. */
+export const BILLY_WIDE_CM = 76;
+export const BILLY_NARROW_CM = 36;
+
+/** A starting template for a corner wall: narrow ends + narrow corner. */
+export const SAMPLE_WALL: BayConfig[] = [
+  { widthCm: BILLY_NARROW_CM, shelves: 6, extension: true, label: "left end" },
+  { widthCm: BILLY_WIDE_CM, shelves: 6, extension: true },
+  { widthCm: BILLY_WIDE_CM, shelves: 6, extension: true },
+  { widthCm: BILLY_NARROW_CM, shelves: 6, extension: true, label: "corner" },
+  { widthCm: BILLY_WIDE_CM, shelves: 6, extension: true },
+  { widthCm: BILLY_WIDE_CM, shelves: 6, extension: true },
+  { widthCm: BILLY_NARROW_CM, shelves: 6, extension: true, label: "right end" },
+];
+
+/** Which physical shelf slot (bay + row) a given global shelf index lands in. */
+type Slot = {
+  bay: number;
+  indexInBay: number;
+  isExtension: boolean;
+  capacityMm: number;
+};
+
+function slotAt(options: ShelfOptions, i: number): Slot {
+  const list = options.bookcases;
+  if (list && list.length) {
+    let idx = i;
+    let bay = 0;
+    // Walk configured bookcases; past the end, repeat the last one.
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const bc = list[Math.min(bay, list.length - 1)];
+      const total = bc.shelves + (bc.extension ? 1 : 0);
+      if (idx < total) {
+        return {
+          bay,
+          indexInBay: idx,
+          isExtension: bc.extension && idx === 0,
+          capacityMm: bc.widthCm * 10,
+        };
+      }
+      idx -= total;
+      bay++;
+    }
+  }
+  const perBay = options.shelvesPerBay + (options.hasExtension ? 1 : 0);
+  return {
+    bay: Math.floor(i / perBay),
+    indexInBay: i % perBay,
+    isExtension: options.hasExtension && i % perBay === 0,
+    capacityMm: options.shelfWidthCm * 10,
+  };
+}
 
 export function spineWidthMm(book: Book, o: ShelfOptions): number {
   const pages = book.page_count && book.page_count > 0 ? book.page_count : o.defaultPages;
@@ -236,9 +299,6 @@ function sectionOf(book: Book): { section: Section; catOrder: number; category: 
 }
 
 export function planLibrary(books: Book[], options: ShelfOptions): ShelfPlan {
-  const capacityMm = options.shelfWidthCm * 10;
-  const perBay = options.shelvesPerBay + (options.hasExtension ? 1 : 0);
-
   // 1) order books by section → category → (canonical / author) → title
   const decorated = books.map((b) => {
     const { section, catOrder, category } = sectionOf(b);
@@ -271,16 +331,15 @@ export function planLibrary(books: Book[], options: ShelfOptions): ShelfPlan {
   let lastSectionKey: string | null = null;
 
   const makeShelf = (): PlannedShelf => {
-    const bay = Math.floor(globalShelfIndex / perBay);
-    const indexInBay = globalShelfIndex % perBay;
+    const slot = slotAt(options, globalShelfIndex);
     const shelf: PlannedShelf = {
       globalIndex: globalShelfIndex,
-      bay,
-      indexInBay,
-      isExtension: options.hasExtension && indexInBay === 0,
+      bay: slot.bay,
+      indexInBay: slot.indexInBay,
+      isExtension: slot.isExtension,
       items: [],
       usedMm: 0,
-      capacityMm,
+      capacityMm: slot.capacityMm,
       sections: [],
     };
     globalShelfIndex++;
@@ -293,7 +352,7 @@ export function planLibrary(books: Book[], options: ShelfOptions): ShelfPlan {
 
     const needNew =
       !current ||
-      current.usedMm + widthMm > capacityMm ||
+      current.usedMm + widthMm > current.capacityMm ||
       (options.sectionStartsNewShelf &&
         startingNewSection &&
         current.items.length > 0);
@@ -322,14 +381,16 @@ export function planLibrary(books: Book[], options: ShelfOptions): ShelfPlan {
   }
 
   const totalLinearMm = shelves.reduce((s, sh) => s + sh.usedMm, 0);
-  const bayCount = shelves.length ? Math.floor((shelves.length - 1) / perBay) + 1 : 0;
+  const bayCount = shelves.length
+    ? Math.max(...shelves.map((s) => s.bay)) + 1
+    : 0;
 
   return {
     shelves,
     bayCount,
     totalBooks: books.length,
     totalLinearMm,
-    capacityMm,
+    capacityMm: shelves[0]?.capacityMm ?? options.shelfWidthCm * 10,
     options,
   };
 }
@@ -366,24 +427,21 @@ export function finalizeShelves(
   rows: PlacedBook[][],
   options: ShelfOptions
 ): PlannedShelf[] {
-  const capacityMm = options.shelfWidthCm * 10;
-  const perBay = options.shelvesPerBay + (options.hasExtension ? 1 : 0);
-
   return rows.map((items, i) => {
     const sections: string[] = [];
     for (const it of items) {
       const title = categorySectionTitle(it.book.categories[0]);
       if (!sections.includes(title)) sections.push(title);
     }
-    const indexInBay = i % perBay;
+    const slot = slotAt(options, i);
     return {
       globalIndex: i,
-      bay: Math.floor(i / perBay),
-      indexInBay,
-      isExtension: options.hasExtension && indexInBay === 0,
+      bay: slot.bay,
+      indexInBay: slot.indexInBay,
+      isExtension: slot.isExtension,
       items,
       usedMm: items.reduce((s, it) => s + it.widthMm, 0),
-      capacityMm,
+      capacityMm: slot.capacityMm,
       sections,
     };
   });
