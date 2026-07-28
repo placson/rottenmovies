@@ -142,30 +142,19 @@ const CORNER_ANGLE: Record<Corner, number> = {
   bl: 315,
 };
 
-/** Geometry for a corner-mounted piece: center point + rotation (degrees). */
+/**
+ * Geometry for a corner-mounted (45°) piece. Its position is stored as the
+ * piece's own center in (x, y), so it can be dragged anywhere while keeping the
+ * diagonal orientation of its chosen corner direction.
+ */
 export function cornerGeometry(
-  room: Room,
   f: Furniture
 ): { cx: number; cy: number; angle: number } {
   const c = f.corner ?? "tl";
-  const angle = CORNER_ANGLE[c];
-  const pt: Record<Corner, [number, number]> = {
-    tl: [0, 0],
-    tr: [room.width, 0],
-    br: [room.width, room.length],
-    bl: [0, room.length],
-  };
-  const [px, py] = pt[c];
-  const rad = (angle * Math.PI) / 180;
-  // Nudge the center in from the corner by half the depth.
-  return {
-    cx: px + Math.cos(rad) * (f.depth / 2),
-    cy: py + Math.sin(rad) * (f.depth / 2),
-    angle,
-  };
+  return { cx: f.x, cy: f.y, angle: CORNER_ANGLE[c] };
 }
 
-/** The room-corner anchor point (used to keep ordering sensible). */
+/** The room-corner anchor point. */
 export function cornerAnchor(room: Room, c: Corner): { x: number; y: number } {
   const pt: Record<Corner, [number, number]> = {
     tl: [0, 0],
@@ -174,6 +163,31 @@ export function cornerAnchor(room: Room, c: Corner): { x: number; y: number } {
     bl: [0, room.length],
   };
   return { x: pt[c][0], y: pt[c][1] };
+}
+
+/** Initial center for a piece tucked into a room corner (back near the corner). */
+export function cornerCenter(
+  room: Room,
+  c: Corner,
+  depth: number
+): { x: number; y: number } {
+  const { x: px, y: py } = cornerAnchor(room, c);
+  const rad = (CORNER_ANGLE[c] * Math.PI) / 180;
+  return {
+    x: px + Math.cos(rad) * (depth / 2),
+    y: py + Math.sin(rad) * (depth / 2),
+  };
+}
+
+export type Wall = "top" | "left" | "bottom" | "right";
+export const WALL_ROTATION: Record<Wall, Rotation> = {
+  top: 0,
+  right: 90,
+  bottom: 180,
+  left: 270,
+};
+export function rotationWall(r: Rotation): Wall {
+  return r === 90 ? "right" : r === 180 ? "bottom" : r === 270 ? "left" : "top";
 }
 
 export const DEFAULT_ROOM: Room = {

@@ -1529,3 +1529,8 @@ body {
 .piece.corner {
   cursor: pointer;
 }
+
+/* wall picker uses 4 equal columns */
+.corner-btns.wall-btns {
+  grid-template-columns: repeat(4, 1fr);
+}

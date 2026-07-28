@@ -8,13 +8,15 @@ import {
   footprint,
   autoOrder,
   cornerGeometry,
-  cornerAnchor,
+  cornerCenter,
   CORNERS,
+  WALL_ROTATION,
+  rotationWall,
   type Room,
   type Furniture,
   type FurnitureKind,
-  type Rotation,
   type Corner,
+  type Wall,
   type Unit,
 } from "@/lib/room";
 
@@ -34,8 +36,13 @@ const CORNER_LABEL: Record<Corner, string> = {
   bl: "↙ BL",
 };
 
-const nextRotation = (r: Rotation): Rotation =>
-  (((r + 90) % 360) as Rotation);
+const WALLS: Wall[] = ["top", "left", "bottom", "right"];
+const WALL_LABEL: Record<Wall, string> = {
+  top: "Top",
+  left: "Left",
+  bottom: "Bottom",
+  right: "Right",
+};
 
 export default function RoomPlanner() {
   const [room, setRoom] = useState<Room>(DEFAULT_ROOM);
@@ -86,10 +93,10 @@ export default function RoomPlanner() {
       room.furniture.reduce((m, f) => Math.max(m, f.order), 0) + 1;
     const piece = makeFurniture(kind, room.unit, order);
     if (asCorner) {
-      const a = cornerAnchor(room, "tl");
       piece.corner = "tl";
-      piece.x = a.x;
-      piece.y = a.y;
+      const c = cornerCenter(room, "tl", piece.depth);
+      piece.x = c.x;
+      piece.y = c.y;
     }
     mutate({ ...room, furniture: [...room.furniture, piece] });
     setSelectedId(piece.id);
@@ -98,14 +105,19 @@ export default function RoomPlanner() {
   const setCorner = (id: string, corner: Corner | null) => {
     const f = room.furniture.find((x) => x.id === id);
     if (!f) return;
-    const patch: Partial<Furniture> = { corner };
     if (corner) {
-      const a = cornerAnchor(room, corner);
-      patch.x = a.x;
-      patch.y = a.y;
+      // Snap into that corner (as a center point); it can be dragged out after.
+      const c = cornerCenter(room, corner, f.depth);
+      patchFurniture(id, { corner, x: c.x, y: c.y });
+    } else if (f.corner) {
+      // Convert the stored center back to a top-left footprint origin.
+      const { w, h } = footprint({ ...f, corner: null });
+      patchFurniture(id, { corner: null, x: f.x - w / 2, y: f.y - h / 2 });
     }
-    patchFurniture(id, patch);
   };
+
+  const setWall = (id: string, wall: Wall) =>
+    patchFurniture(id, { rotation: WALL_ROTATION[wall] });
 
   const removePiece = (id: string) => {
     mutate({ ...room, furniture: room.furniture.filter((f) => f.id !== id) });
@@ -124,8 +136,8 @@ export default function RoomPlanner() {
   const onPiecePointerDown = (e: React.PointerEvent, f: Furniture) => {
     e.preventDefault();
     setSelectedId(f.id);
-    if (f.corner) return; // corner pieces are anchored; move them via buttons
     const p = toUnitCoords(e.clientX, e.clientY);
+    // (x, y) is the top-left for normal pieces and the center for corner pieces.
     drag.current = { id: f.id, dx: p.x - f.x, dy: p.y - f.y };
     svgRef.current?.setPointerCapture(e.pointerId);
   };
@@ -136,18 +148,24 @@ export default function RoomPlanner() {
     const f = room.furniture.find((x) => x.id === d.id);
     if (!f) return;
     const p = toUnitCoords(e.clientX, e.clientY);
-    const { w, h } = footprint(f);
     let nx = Math.round(p.x - d.dx);
     let ny = Math.round(p.y - d.dy);
-    // clamp inside the room
-    nx = Math.max(0, Math.min(room.width - w, nx));
-    ny = Math.max(0, Math.min(room.length - h, ny));
-    // snap to walls within ~3 units
-    const snap = 3;
-    if (nx < snap) nx = 0;
-    if (room.width - (nx + w) < snap) nx = room.width - w;
-    if (ny < snap) ny = 0;
-    if (room.length - (ny + h) < snap) ny = room.length - h;
+
+    if (f.corner) {
+      // Corner pieces store their center; keep the rotated box inside the room.
+      const half = ((f.width + f.depth) / Math.SQRT2) / 2;
+      nx = Math.max(half, Math.min(room.width - half, nx));
+      ny = Math.max(half, Math.min(room.length - half, ny));
+    } else {
+      const { w, h } = footprint(f);
+      nx = Math.max(0, Math.min(room.width - w, nx));
+      ny = Math.max(0, Math.min(room.length - h, ny));
+      const snap = 3; // snap to walls
+      if (nx < snap) nx = 0;
+      if (room.width - (nx + w) < snap) nx = room.width - w;
+      if (ny < snap) ny = 0;
+      if (room.length - (ny + h) < snap) ny = room.length - h;
+    }
     patchFurniture(d.id, { x: nx, y: ny });
   };
 
@@ -330,7 +348,7 @@ export default function RoomPlanner() {
 
                   // Corner pieces render diagonally (45°) into their room corner.
                   if (f.corner) {
-                    const cg = cornerGeometry(room, f);
+                    const cg = cornerGeometry(f);
                     const t = Math.max(1.2, Math.min(f.depth, f.width) * 0.12);
                     const badgeR = Math.min(f.depth, f.width) * 0.3;
                     return (
@@ -432,8 +450,9 @@ export default function RoomPlanner() {
                 })}
               </svg>
               <p className="canvas-hint">
-                Drag pieces to place them · the light edge is the shelf front ·
-                numbers are the fill order
+                Drag any piece (including corners) to place it · the light edge
+                is the shelf front · pick a wall or corner in the panel · numbers
+                are the fill order
               </p>
             </div>
 
@@ -555,22 +574,32 @@ export default function RoomPlanner() {
                     </div>
                   </div>
 
+                  {!selected.corner && (
+                    <div className="corner-picker">
+                      <span className="corner-label">Against wall</span>
+                      <div className="corner-btns wall-btns">
+                        {WALLS.map((w) => (
+                          <button
+                            key={w}
+                            className={
+                              rotationWall(selected.rotation) === w ? "on" : ""
+                            }
+                            onClick={() => setWall(selected.id, w)}
+                          >
+                            {WALL_LABEL[w]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="props-actions">
-                    {!selected.corner && (
-                      <button
-                        onClick={() =>
-                          patchFurniture(selected.id, {
-                            rotation: nextRotation(selected.rotation),
-                          })
-                        }
-                      >
-                        ⟳ Rotate ({selected.rotation}°)
-                      </button>
-                    )}
                     <span className="usable">
                       Usable shelf: {selected.width} {unitLabel} ×{" "}
                       {selected.shelves + (selected.extension ? 1 : 0)} shelves
-                      {selected.corner ? " · corner-mounted" : ""}
+                      {selected.corner
+                        ? " · corner-mounted (drag to reposition)"
+                        : ` · against ${rotationWall(selected.rotation)} wall`}
                     </span>
                   </div>
                 </>
