@@ -1495,3 +1495,37 @@ body {
   font-size: 12.5px;
   color: var(--muted);
 }
+
+/* ---------- corner picker ---------- */
+.corner-picker {
+  margin-top: 14px;
+}
+.corner-label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.corner-btns {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.corner-btns button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 8px 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.corner-btns button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.piece.corner {
+  cursor: pointer;
+}

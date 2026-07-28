@@ -54,11 +54,13 @@ Screen" and it behaves like a native app.
   (per browser) and overrides the auto plan until you reset it. Supports
   **mixed bookcase widths** — define each bay (e.g. IKEA BILLY wide 76 cm /
   narrow 36 cm, 6 shelves + extension) so the plan mirrors a real wall.
-- 🗺 **Room Planner** — a top-down floor-plan editor (`/room`). Place bookcases,
-  short cases, corner units, and rotating towers at exact measurements
-  (inches or cm), drag them into position, and set the fill order. Turn on
-  “Use my room layout” on the Shelf Plan and books are arranged onto those
-  shelves in that order. Saved server-side.
+- 🗺 **Room Planner** — a top-down floor-plan editor (`/room`). Place pieces at
+  exact measurements (inches or cm) and drag them into position: **Billy Wide**
+  (76 cm) and **Billy Skinny** (36 cm) presets, plus Short, Rotating Tower, and
+  Custom shelves. **Any piece can be made a corner** — mounted diagonally at 45°
+  in any of the four room corners (top-left/right, bottom-left/right). Set the
+  fill order, then turn on “Use my room layout” on the Shelf Plan to arrange
+  books onto those shelves in that order. Saved server-side.
 - 🖼️ Automatic cover art, author, year, and page count
 - ✏️ Tap any book to edit; duplicates are detected by ISBN
 - 📲 Installable PWA with offline shell + app icon

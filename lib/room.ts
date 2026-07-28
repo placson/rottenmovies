@@ -1,8 +1,17 @@
 import type { BayConfig } from "./shelf";
 
 export type Unit = "in" | "cm";
-export type FurnitureKind = "bookcase" | "short" | "corner" | "tower";
+export type FurnitureKind =
+  | "billyWide"
+  | "billySkinny"
+  | "short"
+  | "tower"
+  | "custom";
 export type Rotation = 0 | 90 | 180 | 270;
+
+/** Which room corner a piece is tucked diagonally into (45°), or null. */
+export type Corner = "tl" | "tr" | "br" | "bl";
+export const CORNERS: Corner[] = ["tl", "tr", "br", "bl"];
 
 /** One piece of furniture placed on the room floor. All lengths are in the
  *  room's unit. `width` is the usable shelf length (what books line up along). */
@@ -19,6 +28,7 @@ export type Furniture = {
   shelves: number;
   extension: boolean;
   order: number; // traversal order (which case fills first)
+  corner?: Corner | null; // if set, sits diagonally in that room corner
 };
 
 export type Room = {
@@ -61,6 +71,18 @@ export function makeFurniture(
     order,
   };
   switch (kind) {
+    case "billySkinny":
+      return {
+        ...base,
+        kind,
+        label: "Billy Skinny",
+        width: inch(14), // 40 cm unit ≈ 15.75", usable ≈ 14"
+        depth: inch(11),
+        height: inch(79.5),
+        shelves: 6,
+        extension: true,
+        corner: null,
+      };
     case "short":
       return {
         ...base,
@@ -71,17 +93,7 @@ export function makeFurniture(
         height: inch(42),
         shelves: 3,
         extension: false,
-      };
-    case "corner":
-      return {
-        ...base,
-        kind,
-        label: "Corner unit",
-        width: inch(26),
-        depth: inch(26),
-        height: inch(79),
-        shelves: 6,
-        extension: false,
+        corner: null,
       };
     case "tower":
       return {
@@ -93,20 +105,75 @@ export function makeFurniture(
         height: inch(48),
         shelves: 4,
         extension: false,
+        corner: null,
       };
-    case "bookcase":
+    case "custom":
+      return {
+        ...base,
+        kind,
+        label: "Custom shelf",
+        width: inch(24),
+        depth: inch(11),
+        height: inch(72),
+        shelves: 5,
+        extension: false,
+        corner: null,
+      };
+    case "billyWide":
     default:
       return {
         ...base,
-        kind: "bookcase",
-        label: "Bookcase",
-        width: inch(30),
+        kind: "billyWide",
+        label: "Billy Wide",
+        width: inch(30), // 80 cm unit, usable ≈ 30" (76 cm)
         depth: inch(11),
-        height: inch(79),
+        height: inch(79.5),
         shelves: 6,
         extension: true,
+        corner: null,
       };
   }
+}
+
+const CORNER_ANGLE: Record<Corner, number> = {
+  tl: 45,
+  tr: 135,
+  br: 225,
+  bl: 315,
+};
+
+/** Geometry for a corner-mounted piece: center point + rotation (degrees). */
+export function cornerGeometry(
+  room: Room,
+  f: Furniture
+): { cx: number; cy: number; angle: number } {
+  const c = f.corner ?? "tl";
+  const angle = CORNER_ANGLE[c];
+  const pt: Record<Corner, [number, number]> = {
+    tl: [0, 0],
+    tr: [room.width, 0],
+    br: [room.width, room.length],
+    bl: [0, room.length],
+  };
+  const [px, py] = pt[c];
+  const rad = (angle * Math.PI) / 180;
+  // Nudge the center in from the corner by half the depth.
+  return {
+    cx: px + Math.cos(rad) * (f.depth / 2),
+    cy: py + Math.sin(rad) * (f.depth / 2),
+    angle,
+  };
+}
+
+/** The room-corner anchor point (used to keep ordering sensible). */
+export function cornerAnchor(room: Room, c: Corner): { x: number; y: number } {
+  const pt: Record<Corner, [number, number]> = {
+    tl: [0, 0],
+    tr: [room.width, 0],
+    br: [room.width, room.length],
+    bl: [0, room.length],
+  };
+  return { x: pt[c][0], y: pt[c][1] };
 }
 
 export const DEFAULT_ROOM: Room = {

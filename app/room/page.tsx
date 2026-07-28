@@ -7,18 +7,31 @@ import {
   makeFurniture,
   footprint,
   autoOrder,
+  cornerGeometry,
+  cornerAnchor,
+  CORNERS,
   type Room,
   type Furniture,
   type FurnitureKind,
   type Rotation,
+  type Corner,
   type Unit,
 } from "@/lib/room";
 
-const KIND_COLORS: Record<FurnitureKind, string> = {
-  bookcase: "#8a5a34",
+const KIND_COLORS: Record<string, string> = {
+  billyWide: "#8a5a34",
+  billySkinny: "#a06a3e",
   short: "#b07a45",
-  corner: "#6d4b2f",
   tower: "#4f7a86",
+  custom: "#7a6a52",
+};
+const colorFor = (kind: string) => KIND_COLORS[kind] ?? "#7a6a52";
+
+const CORNER_LABEL: Record<Corner, string> = {
+  tl: "↖ TL",
+  tr: "↗ TR",
+  br: "↘ BR",
+  bl: "↙ BL",
 };
 
 const nextRotation = (r: Rotation): Rotation =>
@@ -68,12 +81,30 @@ export default function RoomPlanner() {
   );
   const unitLabel = room.unit;
 
-  const addPiece = (kind: FurnitureKind) => {
+  const addPiece = (kind: FurnitureKind, asCorner = false) => {
     const order =
       room.furniture.reduce((m, f) => Math.max(m, f.order), 0) + 1;
     const piece = makeFurniture(kind, room.unit, order);
+    if (asCorner) {
+      const a = cornerAnchor(room, "tl");
+      piece.corner = "tl";
+      piece.x = a.x;
+      piece.y = a.y;
+    }
     mutate({ ...room, furniture: [...room.furniture, piece] });
     setSelectedId(piece.id);
+  };
+
+  const setCorner = (id: string, corner: Corner | null) => {
+    const f = room.furniture.find((x) => x.id === id);
+    if (!f) return;
+    const patch: Partial<Furniture> = { corner };
+    if (corner) {
+      const a = cornerAnchor(room, corner);
+      patch.x = a.x;
+      patch.y = a.y;
+    }
+    patchFurniture(id, patch);
   };
 
   const removePiece = (id: string) => {
@@ -93,6 +124,7 @@ export default function RoomPlanner() {
   const onPiecePointerDown = (e: React.PointerEvent, f: Furniture) => {
     e.preventDefault();
     setSelectedId(f.id);
+    if (f.corner) return; // corner pieces are anchored; move them via buttons
     const p = toUnitCoords(e.clientX, e.clientY);
     drag.current = { id: f.id, dx: p.x - f.x, dy: p.y - f.y };
     svgRef.current?.setPointerCapture(e.pointerId);
@@ -249,10 +281,16 @@ export default function RoomPlanner() {
 
             <div className="palette">
               <span className="palette-label">Add:</span>
-              <button onClick={() => addPiece("bookcase")}>＋ Bookcase</button>
+              <button onClick={() => addPiece("billyWide")}>＋ Billy Wide</button>
+              <button onClick={() => addPiece("billySkinny")}>
+                ＋ Billy Skinny
+              </button>
               <button onClick={() => addPiece("short")}>＋ Short</button>
-              <button onClick={() => addPiece("corner")}>＋ Corner</button>
               <button onClick={() => addPiece("tower")}>＋ Tower</button>
+              <button onClick={() => addPiece("custom")}>＋ Custom</button>
+              <button onClick={() => addPiece("custom", true)}>
+                ＋ Custom Corner
+              </button>
               <button
                 className="ghost"
                 onClick={() =>
@@ -288,10 +326,55 @@ export default function RoomPlanner() {
                   className="room-floor"
                 />
                 {room.furniture.map((f) => {
+                  const sel = f.id === selectedId;
+
+                  // Corner pieces render diagonally (45°) into their room corner.
+                  if (f.corner) {
+                    const cg = cornerGeometry(room, f);
+                    const t = Math.max(1.2, Math.min(f.depth, f.width) * 0.12);
+                    const badgeR = Math.min(f.depth, f.width) * 0.3;
+                    return (
+                      <g
+                        key={f.id}
+                        onPointerDown={(e) => onPiecePointerDown(e, f)}
+                        className={`piece corner ${sel ? "sel" : ""}`}
+                      >
+                        <g transform={`translate(${cg.cx} ${cg.cy}) rotate(${cg.angle})`}>
+                          <rect
+                            x={-f.depth / 2}
+                            y={-f.width / 2}
+                            width={f.depth}
+                            height={f.width}
+                            rx={1}
+                            fill={colorFor(f.kind)}
+                            stroke={sel ? "#fff" : "#00000055"}
+                            strokeWidth={sel ? 1.5 : 0.6}
+                          />
+                          <rect
+                            x={f.depth / 2 - t}
+                            y={-f.width / 2}
+                            width={t}
+                            height={f.width}
+                            fill="#ffd9a0"
+                            opacity={0.9}
+                          />
+                        </g>
+                        <circle cx={cg.cx} cy={cg.cy} r={badgeR} fill="#0009" />
+                        <text
+                          x={cg.cx}
+                          y={cg.cy}
+                          className="piece-order"
+                          fontSize={badgeR * 1.1}
+                        >
+                          {f.order}
+                        </text>
+                      </g>
+                    );
+                  }
+
                   const { w, h } = footprint(f);
                   const fe = frontEdge(f);
                   const isTower = f.kind === "tower";
-                  const sel = f.id === selectedId;
                   return (
                     <g
                       key={f.id}
@@ -304,7 +387,7 @@ export default function RoomPlanner() {
                           cy={f.y + h / 2}
                           rx={w / 2}
                           ry={h / 2}
-                          fill={KIND_COLORS[f.kind]}
+                          fill={colorFor(f.kind)}
                           stroke={sel ? "#fff" : "#00000055"}
                           strokeWidth={sel ? 1.5 : 0.6}
                         />
@@ -316,7 +399,7 @@ export default function RoomPlanner() {
                             width={w}
                             height={h}
                             rx={1}
-                            fill={KIND_COLORS[f.kind]}
+                            fill={colorFor(f.kind)}
                             stroke={sel ? "#fff" : "#00000055"}
                             strokeWidth={sel ? 1.5 : 0.6}
                           />
@@ -451,19 +534,43 @@ export default function RoomPlanner() {
                     </label>
                   </div>
 
+                  <div className="corner-picker">
+                    <span className="corner-label">Corner (45°)</span>
+                    <div className="corner-btns">
+                      <button
+                        className={!selected.corner ? "on" : ""}
+                        onClick={() => setCorner(selected.id, null)}
+                      >
+                        None
+                      </button>
+                      {CORNERS.map((c) => (
+                        <button
+                          key={c}
+                          className={selected.corner === c ? "on" : ""}
+                          onClick={() => setCorner(selected.id, c)}
+                        >
+                          {CORNER_LABEL[c]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="props-actions">
-                    <button
-                      onClick={() =>
-                        patchFurniture(selected.id, {
-                          rotation: nextRotation(selected.rotation),
-                        })
-                      }
-                    >
-                      ⟳ Rotate ({selected.rotation}°)
-                    </button>
+                    {!selected.corner && (
+                      <button
+                        onClick={() =>
+                          patchFurniture(selected.id, {
+                            rotation: nextRotation(selected.rotation),
+                          })
+                        }
+                      >
+                        ⟳ Rotate ({selected.rotation}°)
+                      </button>
+                    )}
                     <span className="usable">
                       Usable shelf: {selected.width} {unitLabel} ×{" "}
                       {selected.shelves + (selected.extension ? 1 : 0)} shelves
+                      {selected.corner ? " · corner-mounted" : ""}
                     </span>
                   </div>
                 </>
