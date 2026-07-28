@@ -41,6 +41,12 @@ Screen" and it behaves like a native app.
 - ⭐ **Your 5-star rating**, plus **Goodreads link + Goodreads rating**
 - 📅 **Reading dates** — date added, date started, date finished (with a
   Reading / Read badge on each cover)
+- 🗄 **Shelf Plan** — groups the library into meaningful pastor's-study
+  *sections*, computes each book's **spine width from its page count**, and lays
+  everything onto **to-scale IKEA Billy bookcases** (76 cm shelves, 6 + a top
+  extension). Includes a **printable shelf-by-shelf list** to follow while you
+  physically arrange your books, plus tunable shelf dimensions and paper
+  thickness. Commentaries shelve in canonical Bible order (Genesis → Revelation).
 - 🖼️ Automatic cover art, author, year, and page count
 - ✏️ Tap any book to edit; duplicates are detected by ISBN
 - 📲 Installable PWA with offline shell + app icon

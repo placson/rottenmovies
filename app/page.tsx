@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { Book } from "@/lib/db";
 
 // These touch browser-only APIs, so load them client-side only.
@@ -162,16 +163,21 @@ export default function Home() {
             {books.length} {books.length === 1 ? "book" : "books"}
           </p>
         </div>
-        <button
-          className="scan-btn"
-          onClick={() => setScanning(true)}
-          disabled={busy}
-        >
-          <span className="scan-icon" aria-hidden>
-            ▚
-          </span>
-          Scan
-        </button>
+        <div className="header-actions">
+          <Link href="/shelf" className="shelf-link">
+            🗄 Shelf Plan
+          </Link>
+          <button
+            className="scan-btn"
+            onClick={() => setScanning(true)}
+            disabled={busy}
+          >
+            <span className="scan-icon" aria-hidden>
+              ▚
+            </span>
+            Scan
+          </button>
+        </div>
       </header>
 
       <div className="controls">

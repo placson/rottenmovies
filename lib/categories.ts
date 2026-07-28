@@ -34,6 +34,11 @@ export const CATEGORIES: string[] = [
   "Reference",
   "Fiction",
   "Children's",
+  // General / non-theological
+  "Biography (General)",
+  "Military History",
+  "Science & Medicine",
+  "Law & Politics",
 ];
 
 const OT_BOOKS = [
@@ -160,6 +165,23 @@ const KEYWORDS: Record<string, string[]> = {
   ],
   "Children's": [
     "juvenile", "picture book", "for children", "children's", "ages 4",
+  ],
+  "Biography (General)": [
+    "memoirs", "his life", "her life", "a life", "the man who",
+  ],
+  "Military History": [
+    "world war", "world war ii", "world war i", "d-day", "normandy",
+    "band of brothers", "the war", "military history", "battle of",
+    "vietnam war", "revolutionary war", "the marines", "infantry",
+  ],
+  "Science & Medicine": [
+    "medicine", "cancer", "the emperor of all maladies", "biology", "physics",
+    "neuroscience", "the brain", "disease", "evolution", "cosmology",
+    "mathematics", "genetics", "the immune",
+  ],
+  "Law & Politics": [
+    "supreme court", "the constitution", "constitutional", "politics",
+    "political", "the presidency", "congress", "jurisprudence", "the senate",
   ],
 };
 
