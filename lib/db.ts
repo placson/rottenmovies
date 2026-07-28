@@ -84,6 +84,7 @@ async function getSql(): Promise<NeonQueryFunction<false, false>> {
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS rating INTEGER`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS goodreads_url TEXT`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS goodreads_rating REAL`;
+    await sql`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`;
     tableReady = true;
   }
   return sql;
@@ -326,6 +327,71 @@ export async function deleteBook(id: string): Promise<boolean> {
     await writeFileStore(next);
     return true;
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Settings (key/value) — used for the custom category taxonomy         *
+ * ------------------------------------------------------------------ */
+
+const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
+
+async function readSettings(): Promise<Record<string, string>> {
+  try {
+    const raw = await fs.readFile(SETTINGS_FILE, "utf8");
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+export async function getSetting(key: string): Promise<string | null> {
+  if (usePostgres) {
+    const sql = await getSql();
+    const rows = await sql`SELECT value FROM settings WHERE key = ${key} LIMIT 1`;
+    return rows.length ? String(rows[0].value) : null;
+  }
+  const settings = await readSettings();
+  return settings[key] ?? null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  if (usePostgres) {
+    const sql = await getSql();
+    await sql`
+      INSERT INTO settings (key, value) VALUES (${key}, ${value})
+      ON CONFLICT (key) DO UPDATE SET value = ${value}
+    `;
+    return;
+  }
+  await withFileLock(async () => {
+    const settings = await readSettings();
+    settings[key] = value;
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf8");
+  });
+}
+
+/**
+ * Replace a category name across every book. `to = null` removes it (the book
+ * may become uncategorized); otherwise it is renamed/merged. Returns the number
+ * of books changed.
+ */
+export async function replaceCategoryInBooks(
+  from: string,
+  to: string | null
+): Promise<number> {
+  const books = await getBooks();
+  let changed = 0;
+  for (const b of books) {
+    if (!b.categories.includes(from)) continue;
+    const mapped = b.categories
+      .map((c) => (c === from ? to : c))
+      .filter((c): c is string => Boolean(c));
+    const next = [...new Set(mapped)]; // dedupe, preserve order
+    await updateBook(b.id, { categories: next });
+    changed++;
+  }
+  return changed;
 }
 
 export const storageBackend = usePostgres ? "postgres" : "file";

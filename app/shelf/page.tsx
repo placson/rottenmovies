@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import type { Book } from "@/lib/db";
+import { fetchCategories, createCategory } from "@/lib/categoryClient";
 import {
   planLibrary,
   DEFAULT_OPTIONS,
@@ -46,6 +47,7 @@ export default function ShelfPage() {
   const [savedManual, setSavedManual] = useState<string[][] | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropShelf, setDropShelf] = useState<number | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     try {
@@ -91,7 +93,14 @@ export default function ShelfPage() {
 
   useEffect(() => {
     load();
+    fetchCategories().then(setCategories).catch(() => {});
   }, [load]);
+
+  const onCreateCategory = useCallback(async (name: string) => {
+    const list = await createCategory(name);
+    setCategories(list);
+    return name;
+  }, []);
 
   const plan = useMemo(() => planLibrary(books, opts), [books, opts]);
 
@@ -608,6 +617,8 @@ export default function ShelfPage() {
       {editing && (
         <BookEditor
           book={editing}
+          categories={categories}
+          onCreateCategory={onCreateCategory}
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
             setBooks((prev) =>

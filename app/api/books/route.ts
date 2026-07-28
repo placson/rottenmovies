@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { addBook, getBooks } from "@/lib/db";
 import { lookupIsbn, normalizeIsbn, isValidIsbn } from "@/lib/books";
 import { guessCategories } from "@/lib/categories";
+import { getTaxonomy } from "@/lib/taxonomy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,12 +47,14 @@ export async function POST(request: Request) {
     }
 
     // Best-guess a single category; the user can refine in the editor.
+    // Only assign guesses that still exist in the (possibly customized) taxonomy.
+    const taxonomy = await getTaxonomy();
     const guessed = guessCategories({
       title: data.title,
       authors: data.authors,
       subjects: data.subjects,
       description: data.description,
-    });
+    }).filter((c) => taxonomy.includes(c));
 
     const { book, created } = await addBook({
       isbn: data.isbn,

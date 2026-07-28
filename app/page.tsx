@@ -4,12 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Book } from "@/lib/db";
+import { fetchCategories, createCategory } from "@/lib/categoryClient";
 
 // These touch browser-only APIs, so load them client-side only.
 const Scanner = dynamic(() => import("@/components/Scanner"), { ssr: false });
 const BookEditor = dynamic(() => import("@/components/BookEditor"), {
   ssr: false,
 });
+const CategoryManager = dynamic(
+  () => import("@/components/CategoryManager"),
+  { ssr: false }
+);
 
 type Toast = { text: string; kind: "ok" | "err" } | null;
 
@@ -30,6 +35,8 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [reorganizing, setReorganizing] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [managingCats, setManagingCats] = useState(false);
 
   const showToast = useCallback((text: string, kind: "ok" | "err") => {
     setToast({ text, kind });
@@ -48,12 +55,30 @@ export default function Home() {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      setCategories(await fetchCategories());
+    } catch {
+      /* keep existing */
+    }
+  }, []);
+
   useEffect(() => {
     loadBooks();
+    loadCategories();
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
-  }, [loadBooks]);
+  }, [loadBooks, loadCategories]);
+
+  const onCreateCategory = useCallback(
+    async (name: string) => {
+      const list = await createCategory(name);
+      setCategories(list);
+      return name;
+    },
+    []
+  );
 
   const addByIsbn = useCallback(
     async (isbn: string) => {
@@ -217,6 +242,12 @@ export default function Home() {
               : `✨ Auto-categorize ${uncategorizedCount} uncategorized`}
           </button>
         )}
+        <button
+          className="manage-cats-btn"
+          onClick={() => setManagingCats(true)}
+        >
+          ⚙ Manage categories
+        </button>
       </div>
 
       {(categoryCounts.length > 0 || uncategorizedCount > 0) && (
@@ -321,6 +352,8 @@ export default function Home() {
       {editing && (
         <BookEditor
           book={editing}
+          categories={categories}
+          onCreateCategory={onCreateCategory}
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
             setBooks((prev) =>
@@ -333,6 +366,18 @@ export default function Home() {
             setBooks((prev) => prev.filter((b) => b.id !== id));
             setEditing(null);
             showToast("Removed", "ok");
+          }}
+        />
+      )}
+
+      {managingCats && (
+        <CategoryManager
+          categories={categories}
+          books={books}
+          onClose={() => setManagingCats(false)}
+          onChanged={() => {
+            loadCategories();
+            loadBooks();
           }}
         />
       )}

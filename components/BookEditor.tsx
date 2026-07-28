@@ -9,6 +9,10 @@ type Props = {
   onSaved: (book: Book) => void;
   onDeleted: (id: string) => void;
   onClose: () => void;
+  /** The current taxonomy. Falls back to the built-in list. */
+  categories?: string[];
+  /** Create a new category; resolves with the created name. */
+  onCreateCategory?: (name: string) => Promise<string | null>;
 };
 
 function StarPicker({
@@ -51,8 +55,13 @@ export default function BookEditor({
   onSaved,
   onDeleted,
   onClose,
+  categories: taxonomy = CATEGORIES,
+  onCreateCategory,
 }: Props) {
-  const [categories, setCategories] = useState<string[]>(book.categories ?? []);
+  const [selected, setSelected] = useState<string[]>(book.categories ?? []);
+  const [extraCats, setExtraCats] = useState<string[]>([]);
+  const [newCat, setNewCat] = useState("");
+  const [creating, setCreating] = useState(false);
   const [rating, setRating] = useState<number | null>(book.rating);
   const [dateStarted, setDateStarted] = useState(book.date_started ?? "");
   const [dateFinished, setDateFinished] = useState(book.date_finished ?? "");
@@ -63,10 +72,43 @@ export default function BookEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // All chips to show: the taxonomy + this book's existing tags + any just-added.
+  const allCategories = [
+    ...new Set([...taxonomy, ...book.categories, ...extraCats]),
+  ];
+
   const toggleCategory = (cat: string) =>
-    setCategories((prev) =>
+    setSelected((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     );
+
+  const addNewCategory = async () => {
+    const name = newCat.trim();
+    if (!name || creating) return;
+    if (allCategories.some((c) => c.toLowerCase() === name.toLowerCase())) {
+      // Already exists — just select it.
+      setSelected((prev) =>
+        prev.some((c) => c.toLowerCase() === name.toLowerCase())
+          ? prev
+          : [...prev, name]
+      );
+      setNewCat("");
+      return;
+    }
+    setCreating(true);
+    setError(null);
+    try {
+      const created = onCreateCategory ? await onCreateCategory(name) : name;
+      const finalName = created ?? name;
+      setExtraCats((p) => [...p, finalName]);
+      setSelected((p) => [...p, finalName]);
+      setNewCat("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not add category.");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -76,7 +118,7 @@ export default function BookEditor({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          categories,
+          categories: selected,
           rating,
           date_started: dateStarted || null,
           date_finished: dateFinished || null,
@@ -210,23 +252,42 @@ export default function BookEditor({
           <section>
             <label className="field-label">
               Categories{" "}
-              {categories.length > 0 && (
-                <span className="muted">({categories.length} selected)</span>
+              {selected.length > 0 && (
+                <span className="muted">({selected.length} selected)</span>
               )}
             </label>
             <div className="cat-picker">
-              {CATEGORIES.map((cat) => (
+              {allCategories.map((cat) => (
                 <button
                   key={cat}
                   type="button"
-                  className={`cat-chip ${
-                    categories.includes(cat) ? "on" : ""
-                  }`}
+                  className={`cat-chip ${selected.includes(cat) ? "on" : ""}`}
                   onClick={() => toggleCategory(cat)}
                 >
                   {cat}
                 </button>
               ))}
+            </div>
+            <div className="cat-new">
+              <input
+                type="text"
+                placeholder="New category…"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addNewCategory();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={addNewCategory}
+                disabled={!newCat.trim() || creating}
+              >
+                {creating ? "Adding…" : "+ Add"}
+              </button>
             </div>
           </section>
 

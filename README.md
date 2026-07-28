@@ -35,6 +35,9 @@ Screen" and it behaves like a native app.
   can **override with multiple categories** in the editor.
 - 🗂️ **Filter** the library by category (with live counts) and search by title,
   author, ISBN, or category
+- ✏️ **Editable taxonomy** — create categories (including inline while editing a
+  book), rename them (updates every book), and delete them with an option to
+  move the affected books to another category. Stored server-side.
 - ✨ **Auto-categorize** button re-classifies every uncategorized book at once
   (useful for books added before categories existed); never touches books you
   categorized by hand
@@ -149,6 +152,10 @@ public/
 | `PATCH`  | `/api/books/:id`  | `{ categories, rating, … }`   | Update categories, rating, dates, Goodreads |
 | `DELETE` | `/api/books/:id`  | —                             | Remove a book                            |
 | `POST`   | `/api/reorganize` | —                             | Auto-categorize every uncategorized book |
+| `GET`    | `/api/categories` | —                             | List the category taxonomy               |
+| `POST`   | `/api/categories` | `{ name }`                    | Create a category                        |
+| `PATCH`  | `/api/categories` | `{ from, to }`                | Rename a category (updates all books)    |
+| `DELETE` | `/api/categories` | `{ name, reassignTo? }`       | Delete, optionally reassigning books     |
 
 ### Goodreads note
 

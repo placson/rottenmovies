@@ -1167,3 +1167,119 @@ body {
   font-size: 13px;
   cursor: pointer;
 }
+
+/* ---------- manage categories ---------- */
+.manage-cats-btn {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+/* inline "new category" input (editor + manager) */
+.cat-new {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.cat-new input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  outline: none;
+}
+.cat-new input:focus {
+  border-color: var(--accent);
+}
+.cat-new button {
+  border: none;
+  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.cat-new button:disabled {
+  opacity: 0.5;
+}
+
+/* ---------- category manager ---------- */
+.cat-manager .modal-body {
+  gap: 14px;
+}
+.cat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cat-list-item {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+}
+.cat-view-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cat-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+}
+.cat-count {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.cat-action {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.cat-action.danger {
+  color: var(--err);
+}
+.cat-edit-row,
+.cat-delete-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cat-edit-row input,
+.cat-delete-row select {
+  flex: 1;
+  min-width: 120px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 14px;
+}
+.cat-del-msg {
+  font-size: 13.5px;
+  width: 100%;
+}
+.btn-primary.sm,
+.btn-ghost.sm,
+.btn-danger.sm {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+}
