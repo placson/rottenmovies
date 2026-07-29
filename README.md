@@ -67,6 +67,10 @@ the app; everything behind sign-in is private and scoped per user.
   in any of the four room corners (top-left/right, bottom-left/right). Set the
   fill order, then turn on “Use my room layout” on the Shelf Plan to arrange
   books onto those shelves in that order. Saved server-side.
+- 🧊 **3D room view** — on the Shelf Plan (with a room layout in use), flip to
+  **3D room** to orbit around your actual room and see your bookcases and
+  page-count-sized book spines rendered in WebGL (three.js / react-three-fiber,
+  loaded only when opened). Look-only; the 2D planner stays the editor.
 - 🖼️ Automatic cover art, author, year, and page count
 - ✏️ Tap any book to edit; duplicates are detected by ISBN
 - 📲 Installable PWA with offline shell + app icon

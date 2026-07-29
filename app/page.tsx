@@ -27,8 +27,8 @@ export default async function Landing() {
     },
     {
       icon: "🗺️",
-      title: "Design your room",
-      body: "Map your actual room — wide and narrow cases, corners at any angle, towers — and the plan follows your real layout.",
+      title: "Design your room in 3D",
+      body: "Map your actual room — wide and narrow cases, corners at any angle, towers — then step inside a 3D view and orbit around your shelves.",
     },
     {
       icon: "📲",

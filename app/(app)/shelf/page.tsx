@@ -26,6 +26,11 @@ import {
 const BookEditor = nextDynamic(() => import("@/components/BookEditor"), {
   ssr: false,
 });
+// three.js is heavy and browser-only — load it only when the 3D view opens.
+const Room3D = nextDynamic(() => import("@/components/Room3D"), {
+  ssr: false,
+  loading: () => <p className="empty">Loading 3D…</p>,
+});
 
 const OPT_KEY = "shelfPlan.options.v1";
 const MANUAL_KEY = "shelfPlan.manual.v1";
@@ -51,6 +56,7 @@ export default function ShelfPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [room, setRoom] = useState<Room | null>(null);
   const [useRoom, setUseRoom] = useState(false);
+  const [view, setView] = useState<"flat" | "3d">("flat");
 
   useEffect(() => {
     try {
@@ -163,17 +169,27 @@ export default function ShelfPage() {
     return plan.shelves;
   }, [manual, byId, planOpts, plan]);
 
-  const bays = useMemo(() => {
+  const shelvesByBay = useMemo(() => {
     const m = new Map<number, PlannedShelf[]>();
     for (const sh of displayShelves) {
       const a = m.get(sh.bay) ?? [];
       a.push(sh);
       m.set(sh.bay, a);
     }
-    return [...m.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([, s]) => s.sort((x, y) => x.indexInBay - y.indexInBay));
+    for (const a of m.values()) a.sort((x, y) => x.indexInBay - y.indexInBay);
+    return m;
   }, [displayShelves]);
+
+  const bays = useMemo(
+    () =>
+      [...shelvesByBay.entries()].sort((a, b) => a[0] - b[0]).map(([, s]) => s),
+    [shelvesByBay]
+  );
+
+  // 3D needs the actual room geometry, so it's only offered in room mode.
+  const canShow3D =
+    useRoom && !!room && room.furniture.length > 0;
+  const show3D = canShow3D && view === "3d";
 
   const shelvesPerBay = opts.shelvesPerBay + (opts.hasExtension ? 1 : 0);
   const capacityMm = opts.shelfWidthCm * 10;
@@ -522,8 +538,35 @@ export default function ShelfPage() {
             ))}
           </div>
 
+          {canShow3D && (
+            <div className="view-toggle no-print">
+              <button
+                className={view === "flat" ? "on" : ""}
+                onClick={() => setView("flat")}
+              >
+                ▚ Flat plan
+              </button>
+              <button
+                className={view === "3d" ? "on" : ""}
+                onClick={() => setView("3d")}
+              >
+                🧊 3D room
+              </button>
+            </div>
+          )}
+
+          {show3D && (
+            <div className="no-print">
+              <Room3D room={room!} shelvesByBay={shelvesByBay} />
+              <p className="canvas-hint">
+                Drag to orbit · scroll/pinch to zoom · right-drag to pan. Books
+                are placed exactly as the plan below says.
+              </p>
+            </div>
+          )}
+
           {/* ---- visual bookcases ---- */}
-          <div className="wall no-print">
+          <div className="wall no-print" hidden={show3D}>
             {bays.map((shelves, bi) => {
               const bayCapMm = shelves[0]?.capacityMm ?? capacityMm;
               const bayInnerWidth = bayCapMm * scale;

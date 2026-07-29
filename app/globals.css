@@ -1834,3 +1834,40 @@ body {
   align-items: center;
   gap: 20px;
 }
+
+/* ---------- flat / 3D view toggle + 3D canvas ---------- */
+.view-toggle {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+.view-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.view-toggle button.on {
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  color: #1a1200;
+}
+.room3d-wrap {
+  width: 100%;
+  height: min(70vh, 620px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0f1115;
+  touch-action: none;
+}
+.room3d-wrap canvas {
+  display: block;
+}
