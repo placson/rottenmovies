@@ -186,9 +186,8 @@ export default function ShelfPage() {
     [shelvesByBay]
   );
 
-  // 3D needs the actual room geometry, so it's only offered in room mode.
-  const canShow3D =
-    useRoom && !!room && room.furniture.length > 0;
+  // 3D needs the actual room geometry — offer it whenever a room exists.
+  const canShow3D = !!room && room.furniture.length > 0;
   const show3D = canShow3D && view === "3d";
 
   const shelvesPerBay = opts.shelvesPerBay + (opts.hasExtension ? 1 : 0);
@@ -548,7 +547,11 @@ export default function ShelfPage() {
               </button>
               <button
                 className={view === "3d" ? "on" : ""}
-                onClick={() => setView("3d")}
+                onClick={() => {
+                  // 3D maps books onto the real room pieces, so ensure room mode.
+                  setUseRoom(true);
+                  setView("3d");
+                }}
               >
                 🧊 3D room
               </button>
