@@ -86,14 +86,6 @@ async function getSql(): Promise<NeonQueryFunction<false, false>> {
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS goodreads_rating REAL`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS user_id TEXT`;
     await sql`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`;
-    await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id            TEXT PRIMARY KEY,
-        email         TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `;
     tableReady = true;
   }
   return sql;
@@ -429,93 +421,13 @@ export async function replaceCategoryInBooks(
 }
 
 /* ------------------------------------------------------------------ *
- * Users / accounts                                                     *
+ * Orphan-data migration (accounts are managed by Clerk)                *
  * ------------------------------------------------------------------ */
-
-export type User = {
-  id: string;
-  email: string;
-  password_hash: string;
-  created_at: string;
-};
-
-const USERS_FILE = path.join(DATA_DIR, "users.json");
-
-async function readUsers(): Promise<User[]> {
-  try {
-    const raw = await fs.readFile(USERS_FILE, "utf8");
-    return JSON.parse(raw) as User[];
-  } catch {
-    return [];
-  }
-}
-async function writeUsers(users: User[]): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
-}
-
-const normEmail = (e: string) => e.trim().toLowerCase();
-
-export async function countUsers(): Promise<number> {
-  if (usePostgres) {
-    const sql = await getSql();
-    const rows = await sql`SELECT COUNT(*)::int AS n FROM users`;
-    return Number(rows[0]?.n ?? 0);
-  }
-  return (await readUsers()).length;
-}
-
-export async function getUserByEmail(email: string): Promise<User | null> {
-  const e = normEmail(email);
-  if (usePostgres) {
-    const sql = await getSql();
-    const rows = await sql`SELECT * FROM users WHERE email = ${e} LIMIT 1`;
-    return rows.length ? (rows[0] as unknown as User) : null;
-  }
-  return (await readUsers()).find((u) => u.email === e) ?? null;
-}
-
-export async function getUserById(id: string): Promise<User | null> {
-  if (usePostgres) {
-    const sql = await getSql();
-    const rows = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1`;
-    return rows.length ? (rows[0] as unknown as User) : null;
-  }
-  return (await readUsers()).find((u) => u.id === id) ?? null;
-}
-
-export async function createUser(
-  id: string,
-  email: string,
-  passwordHash: string
-): Promise<User> {
-  const e = normEmail(email);
-  const user: User = {
-    id,
-    email: e,
-    password_hash: passwordHash,
-    created_at: new Date().toISOString(),
-  };
-  if (usePostgres) {
-    const sql = await getSql();
-    await sql`
-      INSERT INTO users (id, email, password_hash, created_at)
-      VALUES (${user.id}, ${user.email}, ${user.password_hash}, ${user.created_at})
-    `;
-    return user;
-  }
-  await withFileLock(async () => {
-    const users = await readUsers();
-    users.push(user);
-    await writeUsers(users);
-  });
-  return user;
-}
 
 /**
  * One-time migration: claim any books/settings that predate accounts and give
- * them to `userId`. Called when the very first user registers so the existing
- * single-user library isn't stranded.
+ * them to `userId` (the first signed-in user), so the existing single-user
+ * library isn't stranded.
  */
 export async function adoptOrphanData(userId: string): Promise<number> {
   let adopted = 0;
@@ -547,6 +459,17 @@ export async function adoptOrphanData(userId: string): Promise<number> {
     }
   }
   return adopted;
+}
+
+/**
+ * The first signed-in user (under any auth system) claims books/settings that
+ * predate accounts. Guarded by a settings flag so it runs exactly once.
+ */
+export async function migrateOrphansOnce(userId: string): Promise<void> {
+  const flag = await getSetting("orphans_migrated");
+  if (flag) return;
+  await setSetting("orphans_migrated", userId);
+  await adoptOrphanData(userId);
 }
 
 export const storageBackend = usePostgres ? "postgres" : "file";

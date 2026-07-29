@@ -28,8 +28,9 @@ the app; everything behind sign-in is private and scoped per user.
 
 ## Features
 
-- 👥 **Accounts** — register / sign in with email + password (scrypt-hashed);
-  every user gets their own private library, taxonomy, and room layout
+- 👥 **Accounts via [Clerk](https://clerk.com)** — hosted sign-up / sign-in
+  (email, social logins, etc.); every user gets their own private library,
+  taxonomy, and room layout, scoped by their Clerk user id
 - 🏠 **Marketing landing page** at `/` with a hero and feature tour; the app
   itself lives behind sign-in at `/library`, `/shelf`, and `/room`
 - 📷 Live camera barcode scanning (auto-detects, with haptic feedback)
@@ -76,6 +77,7 @@ the app; everything behind sign-in is private and scoped per user.
 | ---------- | ---------------------------------------- |
 | Framework  | Next.js 16 (App Router) + React 19       |
 | Hosting    | Vercel                                   |
+| Auth       | [Clerk](https://clerk.com) (`@clerk/nextjs`) |
 | Database   | Neon Postgres (`@neondatabase/serverless`) |
 | Scanning   | `@zxing/browser` + `@zxing/library`      |
 | Book data  | Open Library API, Google Books API       |
@@ -104,18 +106,22 @@ to run by hand.
 > that is wiped on every serverless cold start — fine for a quick demo, not for
 > keeping a real library. Add the Neon database for persistence.
 
-### 3b. Set `AUTH_SECRET` (required for sign-in)
-Accounts use a signed session cookie, so set a secret:
+### 3b. Set up Clerk (required for sign-in)
+Authentication is handled by [Clerk](https://clerk.com):
 
-- Vercel project → **Settings → Environment Variables** → add **`AUTH_SECRET`**
-  with a long random value (e.g. run `openssl rand -base64 32`), then redeploy.
-
-Without it the app falls back to an insecure development secret — fine for local
-testing, **not** for a real deployment (anyone could forge a session).
+1. Create a free Clerk application at [dashboard.clerk.com](https://dashboard.clerk.com).
+2. Copy its **API keys** and add them to Vercel → **Settings → Environment
+   Variables**:
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` = `pk_live_…` (or `pk_test_…`)
+   - `CLERK_SECRET_KEY` = `sk_live_…` (or `sk_test_…`)
+3. So sign-in uses the app's own pages, also add:
+   - `NEXT_PUBLIC_CLERK_SIGN_IN_URL` = `/sign-in`
+   - `NEXT_PUBLIC_CLERK_SIGN_UP_URL` = `/sign-up`
+4. Redeploy.
 
 > **First account adopts existing data.** If you had books/settings from before
-> accounts existed, the *first* user to register automatically claims them, so
-> your existing library isn't stranded.
+> accounts existed, the *first* user to sign in automatically claims them (a
+> one-time migration), so your existing library isn't stranded.
 
 ### 4. Install it on your phone
 - Open your Vercel URL (e.g. `https://your-app.vercel.app`) on your phone.
@@ -171,15 +177,12 @@ public/
 
 ## API
 
-All `/api/*` routes below (except auth) require a signed-in session and are
-scoped to that user.
+Sign-in/out is handled by Clerk (hosted UI at `/sign-in` and `/sign-up`). All
+`/api/*` routes below require a signed-in Clerk session and are scoped to that
+user.
 
 | Method   | Route                | Body                          | Description                              |
 | -------- | -------------------- | ----------------------------- | ---------------------------------------- |
-| `POST`   | `/api/auth/register` | `{ email, password }`         | Create an account + sign in              |
-| `POST`   | `/api/auth/login`    | `{ email, password }`         | Sign in                                  |
-| `POST`   | `/api/auth/logout`   | —                             | Sign out                                 |
-| `GET`    | `/api/auth/me`       | —                             | Current user (or null)                   |
 | `GET`    | `/api/books`      | —                             | List your library                        |
 | `POST`   | `/api/books`      | `{ "isbn": …}`                | Look up an ISBN, auto-classify, and add  |
 | `PATCH`  | `/api/books/:id`  | `{ categories, rating, … }`   | Update categories, rating, dates, Goodreads |

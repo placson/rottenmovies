@@ -1,18 +1,24 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { currentUser } from "@clerk/nextjs/server";
+import { UserButton } from "@clerk/nextjs";
 import { getSessionUserId } from "@/lib/auth";
-import { getUserById } from "@/lib/db";
-import LogoutButton from "@/components/LogoutButton";
+import { migrateOrphansOnce } from "@/lib/db";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Middleware already protects these routes; this is a belt-and-suspenders check.
   const userId = await getSessionUserId();
-  if (!userId) redirect("/login");
-  const user = await getUserById(userId);
-  if (!user) redirect("/login");
+  if (!userId) redirect("/sign-in");
+
+  // First signed-in user adopts any pre-accounts library data (runs once).
+  await migrateOrphansOnce(userId);
+
+  const user = await currentUser();
+  const email = user?.primaryEmailAddress?.emailAddress;
 
   return (
     <>
@@ -21,8 +27,8 @@ export default async function AppLayout({
           📚 My Bookshelves
         </Link>
         <div className="appbar-right">
-          <span className="appbar-user">{user.email}</span>
-          <LogoutButton />
+          {email && <span className="appbar-user">{email}</span>}
+          <UserButton />
         </div>
       </header>
       {children}

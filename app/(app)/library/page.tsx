@@ -47,7 +47,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/books", { cache: "no-store" });
       if (res.status === 401) {
-        window.location.href = "/login";
+        window.location.href = "/sign-in";
         return;
       }
       const data = await res.json();

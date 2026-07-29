@@ -48,10 +48,10 @@ export default async function Landing() {
             </Link>
           ) : (
             <>
-              <Link href="/login" className="btn-text">
+              <Link href="/sign-in" className="btn-text">
                 Sign in
               </Link>
-              <Link href="/register" className="btn-solid">
+              <Link href="/sign-up" className="btn-solid">
                 Get started
               </Link>
             </>
@@ -72,11 +72,11 @@ export default async function Landing() {
           helps you arrange it on your real shelves.
         </p>
         <div className="hero-cta">
-          <Link href={loggedIn ? "/library" : "/register"} className="btn-solid lg">
+          <Link href={loggedIn ? "/library" : "/sign-up"} className="btn-solid lg">
             {loggedIn ? "Open my library" : "Start your library — free"}
           </Link>
           {!loggedIn && (
-            <Link href="/login" className="btn-outline lg">
+            <Link href="/sign-in" className="btn-outline lg">
               I already have an account
             </Link>
           )}
@@ -110,7 +110,7 @@ export default async function Landing() {
       <section className="closing">
         <h2>Ready to see your whole collection?</h2>
         <p>Create a free account and scan your first book in under a minute.</p>
-        <Link href={loggedIn ? "/library" : "/register"} className="btn-solid lg">
+        <Link href={loggedIn ? "/library" : "/sign-up"} className="btn-solid lg">
           {loggedIn ? "Open my library" : "Get started"}
         </Link>
       </section>
