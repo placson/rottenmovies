@@ -1,13 +1,14 @@
-# 📚 Book Library Scanner
+# 📚 My Bookshelves
 
-A phone-friendly **Progressive Web App (PWA)** for building your personal book
-library — like [Libib](https://www.libib.com/) or
+A phone-friendly, **multi-user** **Progressive Web App (PWA)** for building your
+personal book library — like [Libib](https://www.libib.com/) or
 [LibraryThing](https://www.librarything.com/), but yours.
 
-Open it on your phone, tap **Scan**, point the camera at a book's barcode, and
-the book is looked up and saved to your library on a remote
-[Vercel](https://vercel.com) site. No app store, no install — just "Add to Home
-Screen" and it behaves like a native app.
+Register an account, open it on your phone, tap **Scan**, point the camera at a
+book's barcode, and the book is looked up and saved to *your* library on a
+remote [Vercel](https://vercel.com) site. No app store, no install — just "Add
+to Home Screen" and it behaves like a native app. A public landing page markets
+the app; everything behind sign-in is private and scoped per user.
 
 ## How it works
 
@@ -27,6 +28,10 @@ Screen" and it behaves like a native app.
 
 ## Features
 
+- 👥 **Accounts** — register / sign in with email + password (scrypt-hashed);
+  every user gets their own private library, taxonomy, and room layout
+- 🏠 **Marketing landing page** at `/` with a hero and feature tour; the app
+  itself lives behind sign-in at `/library`, `/shelf`, and `/room`
 - 📷 Live camera barcode scanning (auto-detects, with haptic feedback)
 - ⌨️ Manual ISBN entry as a fallback
 - 🏷️ **Categories** — a theology-aware taxonomy (Systematic/Biblical Theology,
@@ -92,11 +97,25 @@ It's already committed on the `claude/barcode-book-library-app-xkun1c` branch.
   `POSTGRES_URL`, etc.) into the project.
 - **Redeploy** once (Deployments → ⋯ → Redeploy) so the app picks up the vars.
 
-The `books` table is created automatically on first use — nothing to run by hand.
+The `books` and `users` tables are created automatically on first use — nothing
+to run by hand.
 
 > **Without a database** the app still runs, but it uses a temporary file store
 > that is wiped on every serverless cold start — fine for a quick demo, not for
 > keeping a real library. Add the Neon database for persistence.
+
+### 3b. Set `AUTH_SECRET` (required for sign-in)
+Accounts use a signed session cookie, so set a secret:
+
+- Vercel project → **Settings → Environment Variables** → add **`AUTH_SECRET`**
+  with a long random value (e.g. run `openssl rand -base64 32`), then redeploy.
+
+Without it the app falls back to an insecure development secret — fine for local
+testing, **not** for a real deployment (anyone could forge a session).
+
+> **First account adopts existing data.** If you had books/settings from before
+> accounts existed, the *first* user to register automatically claims them, so
+> your existing library isn't stranded.
 
 ### 4. Install it on your phone
 - Open your Vercel URL (e.g. `https://your-app.vercel.app`) on your phone.
@@ -152,8 +171,15 @@ public/
 
 ## API
 
-| Method   | Route             | Body                          | Description                              |
-| -------- | ----------------- | ----------------------------- | ---------------------------------------- |
+All `/api/*` routes below (except auth) require a signed-in session and are
+scoped to that user.
+
+| Method   | Route                | Body                          | Description                              |
+| -------- | -------------------- | ----------------------------- | ---------------------------------------- |
+| `POST`   | `/api/auth/register` | `{ email, password }`         | Create an account + sign in              |
+| `POST`   | `/api/auth/login`    | `{ email, password }`         | Sign in                                  |
+| `POST`   | `/api/auth/logout`   | —                             | Sign out                                 |
+| `GET`    | `/api/auth/me`       | —                             | Current user (or null)                   |
 | `GET`    | `/api/books`      | —                             | List your library                        |
 | `POST`   | `/api/books`      | `{ "isbn": …}`                | Look up an ISBN, auto-classify, and add  |
 | `PATCH`  | `/api/books/:id`  | `{ categories, rating, … }`   | Update categories, rating, dates, Goodreads |

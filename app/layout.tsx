@@ -2,14 +2,14 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Book Library Scanner",
+  title: "My Bookshelves — scan, organize, and shelve your books",
   description:
-    "Scan book barcodes with your phone and build a personal library, hosted on Vercel.",
+    "Turn your phone into a barcode scanner and your book collection into a beautifully organized, searchable library — then plan your real shelves.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "My Library",
+    title: "My Bookshelves",
   },
   icons: {
     icon: "/icon.svg",

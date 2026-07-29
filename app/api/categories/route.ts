@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import { getTaxonomy, saveTaxonomy } from "@/lib/taxonomy";
 import { replaceCategoryInBooks } from "@/lib/db";
+import { getSessionUserId } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const clean = (v: unknown) => String(v ?? "").trim();
 const eqCI = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const unauthorized = () =>
+  NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 export async function GET() {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
-    return NextResponse.json({ categories: await getTaxonomy() });
+    return NextResponse.json({ categories: await getTaxonomy(userId) });
   } catch (err) {
     console.error("GET /api/categories failed", err);
     return NextResponse.json(
@@ -22,13 +27,15 @@ export async function GET() {
 
 // Create
 export async function POST(request: Request) {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
     const body = await request.json().catch(() => ({}));
     const name = clean(body.name);
     if (!name) {
       return NextResponse.json({ error: "Name is required." }, { status: 400 });
     }
-    const list = await getTaxonomy();
+    const list = await getTaxonomy(userId);
     if (list.some((c) => eqCI(c, name))) {
       return NextResponse.json(
         { error: `“${name}” already exists.` },
@@ -36,7 +43,7 @@ export async function POST(request: Request) {
       );
     }
     const next = [...list, name];
-    await saveTaxonomy(next);
+    await saveTaxonomy(userId, next);
     return NextResponse.json({ categories: next }, { status: 201 });
   } catch (err) {
     console.error("POST /api/categories failed", err);
@@ -46,6 +53,8 @@ export async function POST(request: Request) {
 
 // Rename (and merge every book using the old name to the new one)
 export async function PATCH(request: Request) {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
     const body = await request.json().catch(() => ({}));
     const from = clean(body.from);
@@ -56,28 +65,20 @@ export async function PATCH(request: Request) {
         { status: 400 }
       );
     }
-    const list = await getTaxonomy();
+    const list = await getTaxonomy(userId);
     if (!list.some((c) => eqCI(c, from))) {
       return NextResponse.json(
         { error: `“${from}” doesn't exist.` },
         { status: 404 }
       );
     }
-    if (eqCI(from, to)) {
-      // Only a case change.
-      const next = list.map((c) => (eqCI(c, from) ? to : c));
-      await saveTaxonomy(next);
-      await replaceCategoryInBooks(from, to);
-      return NextResponse.json({ categories: next });
-    }
-    const mergingIntoExisting = list.some((c) => eqCI(c, to));
-    // Remove the old name; keep/insert the new one.
-    let next = list.filter((c) => !eqCI(c, from));
-    if (!mergingIntoExisting) {
-      next = list.map((c) => (eqCI(c, from) ? to : c));
-    }
-    await saveTaxonomy(next);
-    const changed = await replaceCategoryInBooks(from, to);
+    const mergingIntoExisting =
+      !eqCI(from, to) && list.some((c) => eqCI(c, to));
+    const next = mergingIntoExisting
+      ? list.filter((c) => !eqCI(c, from))
+      : list.map((c) => (eqCI(c, from) ? to : c));
+    await saveTaxonomy(userId, next);
+    const changed = await replaceCategoryInBooks(userId, from, to);
     return NextResponse.json({ categories: next, changed });
   } catch (err) {
     console.error("PATCH /api/categories failed", err);
@@ -87,6 +88,8 @@ export async function PATCH(request: Request) {
 
 // Delete (optionally reassigning books to another category)
 export async function DELETE(request: Request) {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
     const body = await request.json().catch(() => ({}));
     const name = clean(body.name);
@@ -94,7 +97,7 @@ export async function DELETE(request: Request) {
     if (!name) {
       return NextResponse.json({ error: "Name is required." }, { status: 400 });
     }
-    const list = await getTaxonomy();
+    const list = await getTaxonomy(userId);
     if (!list.some((c) => eqCI(c, name))) {
       return NextResponse.json(
         { error: `“${name}” doesn't exist.` },
@@ -108,8 +111,8 @@ export async function DELETE(request: Request) {
       );
     }
     const next = list.filter((c) => !eqCI(c, name));
-    await saveTaxonomy(next);
-    const changed = await replaceCategoryInBooks(name, reassignTo);
+    await saveTaxonomy(userId, next);
+    const changed = await replaceCategoryInBooks(userId, name, reassignTo);
     return NextResponse.json({ categories: next, changed });
   } catch (err) {
     console.error("DELETE /api/categories failed", err);

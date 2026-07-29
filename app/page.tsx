@@ -1,394 +1,124 @@
-"use client";
-
-import { useCallback, useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { Book } from "@/lib/db";
-import { fetchCategories, createCategory } from "@/lib/categoryClient";
+import { getSessionUserId } from "@/lib/auth";
 
-// These touch browser-only APIs, so load them client-side only.
-const Scanner = dynamic(() => import("@/components/Scanner"), { ssr: false });
-const BookEditor = dynamic(() => import("@/components/BookEditor"), {
-  ssr: false,
-});
-const CategoryManager = dynamic(
-  () => import("@/components/CategoryManager"),
-  { ssr: false }
-);
+export default async function Landing() {
+  const loggedIn = Boolean(await getSessionUserId());
 
-type Toast = { text: string; kind: "ok" | "err" } | null;
-
-function readingStatus(b: Book): "read" | "reading" | "unread" {
-  if (b.date_finished) return "read";
-  if (b.date_started) return "reading";
-  return "unread";
-}
-
-export default function Home() {
-  const [books, setBooks] = useState<Book[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false);
-  const [manualIsbn, setManualIsbn] = useState("");
-  const [query, setQuery] = useState("");
-  const [activeCat, setActiveCat] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Book | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [reorganizing, setReorganizing] = useState(false);
-  const [toast, setToast] = useState<Toast>(null);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [managingCats, setManagingCats] = useState(false);
-
-  const showToast = useCallback((text: string, kind: "ok" | "err") => {
-    setToast({ text, kind });
-    window.setTimeout(() => setToast(null), 3200);
-  }, []);
-
-  const loadBooks = useCallback(async () => {
-    try {
-      const res = await fetch("/api/books", { cache: "no-store" });
-      const data = await res.json();
-      if (res.ok) setBooks(data.books ?? []);
-    } catch {
-      /* offline — keep whatever we have */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadCategories = useCallback(async () => {
-    try {
-      setCategories(await fetchCategories());
-    } catch {
-      /* keep existing */
-    }
-  }, []);
-
-  useEffect(() => {
-    loadBooks();
-    loadCategories();
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
-  }, [loadBooks, loadCategories]);
-
-  const onCreateCategory = useCallback(
-    async (name: string) => {
-      const list = await createCategory(name);
-      setCategories(list);
-      return name;
+  const features = [
+    {
+      icon: "📷",
+      title: "Scan any barcode",
+      body: "Point your phone at a book's ISBN barcode and it's added in seconds — cover, author, year, and page count filled in automatically.",
     },
-    []
-  );
-
-  const addByIsbn = useCallback(
-    async (isbn: string) => {
-      const clean = isbn.trim();
-      if (!clean) return;
-      setBusy(true);
-      try {
-        const res = await fetch("/api/books", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isbn: clean }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          showToast(data.error ?? "Couldn't add that book.", "err");
-          return;
-        }
-        if (data.created) {
-          setBooks((prev) => [data.book, ...prev]);
-          showToast(`Added “${data.book.title}”`, "ok");
-        } else {
-          showToast(`Already in your library: “${data.book.title}”`, "err");
-        }
-        setManualIsbn("");
-      } catch {
-        showToast("Network error — is the site reachable?", "err");
-      } finally {
-        setBusy(false);
-      }
+    {
+      icon: "🏷️",
+      title: "Smart categories",
+      body: "Every book is auto-sorted into your own taxonomy. Create, rename, and merge categories however you think about your collection.",
     },
-    [showToast]
-  );
-
-  const onDetected = useCallback(
-    (code: string) => {
-      setScanning(false);
-      addByIsbn(code);
+    {
+      icon: "⭐",
+      title: "Track your reading",
+      body: "Your rating, start and finish dates, and a Goodreads link on every book. Search and filter your whole library instantly.",
     },
-    [addByIsbn]
-  );
-
-  const reorganize = useCallback(async () => {
-    setReorganizing(true);
-    try {
-      const res = await fetch("/api/reorganize", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error ?? "Reorganize failed.", "err");
-        return;
-      }
-      await loadBooks();
-      showToast(
-        data.updated > 0
-          ? `Auto-categorized ${data.updated} of ${data.scanned} book${
-              data.scanned === 1 ? "" : "s"
-            }.`
-          : "No new categories could be guessed.",
-        data.updated > 0 ? "ok" : "err"
-      );
-    } catch {
-      showToast("Network error during reorganize.", "err");
-    } finally {
-      setReorganizing(false);
-    }
-  }, [loadBooks, showToast]);
-
-  // Category → count, for the filter bar.
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const b of books) {
-      for (const c of b.categories) counts.set(c, (counts.get(c) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [books]);
-
-  const uncategorizedCount = useMemo(
-    () => books.filter((b) => b.categories.length === 0).length,
-    [books]
-  );
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return books.filter((b) => {
-      if (activeCat === "__uncat__" && b.categories.length > 0) return false;
-      if (
-        activeCat &&
-        activeCat !== "__uncat__" &&
-        !b.categories.includes(activeCat)
-      )
-        return false;
-      if (!q) return true;
-      return (
-        b.title.toLowerCase().includes(q) ||
-        b.authors.toLowerCase().includes(q) ||
-        b.isbn.includes(q) ||
-        b.categories.some((c) => c.toLowerCase().includes(q))
-      );
-    });
-  }, [books, query, activeCat]);
+    {
+      icon: "🗄️",
+      title: "Plan your shelves",
+      body: "See your books laid onto to-scale bookcases, sized by page count. Print a shelf-by-shelf plan to arrange your real shelves.",
+    },
+    {
+      icon: "🗺️",
+      title: "Design your room",
+      body: "Map your actual room — wide and narrow cases, corners at any angle, towers — and the plan follows your real layout.",
+    },
+    {
+      icon: "📲",
+      title: "Works like an app",
+      body: "Install it to your phone's home screen. No app store, no downloads — just open, scan, and go. Your library syncs everywhere.",
+    },
+  ];
 
   return (
-    <main className="page">
-      <header className="header">
-        <div>
-          <h1>My Library</h1>
-          <p className="count">
-            {books.length} {books.length === 1 ? "book" : "books"}
-          </p>
-        </div>
-        <div className="header-actions">
-          <Link href="/shelf" className="shelf-link">
-            🗄 Shelf Plan
-          </Link>
-          <button
-            className="scan-btn"
-            onClick={() => setScanning(true)}
-            disabled={busy}
-          >
-            <span className="scan-icon" aria-hidden>
-              ▚
-            </span>
-            Scan
-          </button>
-        </div>
+    <main className="landing">
+      <header className="landing-nav">
+        <span className="landing-logo">📚 My Bookshelves</span>
+        <nav className="landing-nav-links">
+          {loggedIn ? (
+            <Link href="/library" className="btn-solid">
+              Open my library
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="btn-text">
+                Sign in
+              </Link>
+              <Link href="/register" className="btn-solid">
+                Get started
+              </Link>
+            </>
+          )}
+        </nav>
       </header>
 
-      <div className="controls">
-        <form
-          className="manual-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            addByIsbn(manualIsbn);
-          }}
-        >
-          <input
-            inputMode="numeric"
-            placeholder="Enter ISBN manually…"
-            value={manualIsbn}
-            onChange={(e) => setManualIsbn(e.target.value)}
-          />
-          <button type="submit" disabled={busy || !manualIsbn.trim()}>
-            Add
-          </button>
-        </form>
-        {books.length > 0 && (
-          <input
-            className="search"
-            placeholder="Search title, author, ISBN, category…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        )}
-        {uncategorizedCount > 0 && (
-          <button
-            className="reorg-btn"
-            onClick={reorganize}
-            disabled={reorganizing}
-          >
-            {reorganizing
-              ? "Categorizing…"
-              : `✨ Auto-categorize ${uncategorizedCount} uncategorized`}
-          </button>
-        )}
-        <button
-          className="manage-cats-btn"
-          onClick={() => setManagingCats(true)}
-        >
-          ⚙ Manage categories
-        </button>
-      </div>
-
-      {(categoryCounts.length > 0 || uncategorizedCount > 0) && (
-        <div className="cat-bar">
-          <button
-            className={`cat-filter ${activeCat === null ? "on" : ""}`}
-            onClick={() => setActiveCat(null)}
-          >
-            All <span className="n">{books.length}</span>
-          </button>
-          {categoryCounts.map(([cat, n]) => (
-            <button
-              key={cat}
-              className={`cat-filter ${activeCat === cat ? "on" : ""}`}
-              onClick={() => setActiveCat(cat)}
-            >
-              {cat} <span className="n">{n}</span>
-            </button>
+      <section className="hero">
+        <div className="hero-badge">Your whole library, in your pocket</div>
+        <h1>
+          Scan your books.
+          <br />
+          Organize your shelves.
+        </h1>
+        <p className="hero-sub">
+          My Bookshelves turns your phone into a barcode scanner and your
+          collection into a beautifully organized, searchable library — then
+          helps you arrange it on your real shelves.
+        </p>
+        <div className="hero-cta">
+          <Link href={loggedIn ? "/library" : "/register"} className="btn-solid lg">
+            {loggedIn ? "Open my library" : "Start your library — free"}
+          </Link>
+          {!loggedIn && (
+            <Link href="/login" className="btn-outline lg">
+              I already have an account
+            </Link>
+          )}
+        </div>
+        <div className="hero-shelf" aria-hidden>
+          {Array.from({ length: 24 }).map((_, i) => (
+            <span
+              key={i}
+              className="hero-spine"
+              style={{
+                height: `${60 + ((i * 37) % 40)}%`,
+                background: `hsl(${(i * 47) % 360} 45% 52%)`,
+              }}
+            />
           ))}
-          {uncategorizedCount > 0 && (
-            <button
-              className={`cat-filter ${activeCat === "__uncat__" ? "on" : ""}`}
-              onClick={() => setActiveCat("__uncat__")}
-            >
-              Uncategorized <span className="n">{uncategorizedCount}</span>
-            </button>
-          )}
         </div>
-      )}
+      </section>
 
-      {loading ? (
-        <p className="empty">Loading your library…</p>
-      ) : filtered.length === 0 ? (
-        <div className="empty">
-          {books.length === 0 ? (
-            <>
-              <p className="empty-title">Your shelf is empty</p>
-              <p>
-                Tap <strong>Scan</strong> and point your camera at a
-                book&rsquo;s barcode.
-              </p>
-            </>
-          ) : (
-            <p>Nothing matches the current filter.</p>
-          )}
-        </div>
-      ) : (
-        <ul className="grid">
-          {filtered.map((book) => {
-            const status = readingStatus(book);
-            return (
-              <li
-                key={book.id}
-                className="card"
-                onClick={() => setEditing(book)}
-              >
-                <div className="cover">
-                  {book.cover_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={book.cover_url} alt={book.title} loading="lazy" />
-                  ) : (
-                    <div className="cover-fallback">
-                      {book.title.slice(0, 1)}
-                    </div>
-                  )}
-                  {status !== "unread" && (
-                    <span className={`status-badge ${status}`}>
-                      {status === "read" ? "Read" : "Reading"}
-                    </span>
-                  )}
-                </div>
-                <div className="meta">
-                  <p className="title" title={book.title}>
-                    {book.title}
-                  </p>
-                  {book.authors && <p className="authors">{book.authors}</p>}
-                  {book.rating ? (
-                    <p
-                      className="card-stars"
-                      aria-label={`${book.rating} of 5`}
-                    >
-                      {"★".repeat(book.rating)}
-                      <span className="off">
-                        {"★".repeat(5 - book.rating)}
-                      </span>
-                    </p>
-                  ) : null}
-                  {book.categories.length > 0 && (
-                    <p className="card-cat">{book.categories[0]}</p>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <section className="features">
+        {features.map((f) => (
+          <div key={f.title} className="feature">
+            <div className="feature-icon" aria-hidden>
+              {f.icon}
+            </div>
+            <h3>{f.title}</h3>
+            <p>{f.body}</p>
+          </div>
+        ))}
+      </section>
 
-      {scanning && (
-        <Scanner onDetected={onDetected} onClose={() => setScanning(false)} />
-      )}
+      <section className="closing">
+        <h2>Ready to see your whole collection?</h2>
+        <p>Create a free account and scan your first book in under a minute.</p>
+        <Link href={loggedIn ? "/library" : "/register"} className="btn-solid lg">
+          {loggedIn ? "Open my library" : "Get started"}
+        </Link>
+      </section>
 
-      {editing && (
-        <BookEditor
-          book={editing}
-          categories={categories}
-          onCreateCategory={onCreateCategory}
-          onClose={() => setEditing(null)}
-          onSaved={(updated) => {
-            setBooks((prev) =>
-              prev.map((b) => (b.id === updated.id ? updated : b))
-            );
-            setEditing(null);
-            showToast("Saved", "ok");
-          }}
-          onDeleted={(id) => {
-            setBooks((prev) => prev.filter((b) => b.id !== id));
-            setEditing(null);
-            showToast("Removed", "ok");
-          }}
-        />
-      )}
-
-      {managingCats && (
-        <CategoryManager
-          categories={categories}
-          books={books}
-          onClose={() => setManagingCats(false)}
-          onChanged={() => {
-            loadCategories();
-            loadBooks();
-          }}
-        />
-      )}
-
-      {(busy || reorganizing) && <div className="busy-bar" aria-hidden />}
-
-      {toast && (
-        <div className={`toast ${toast.kind}`} role="status">
-          {toast.text}
-        </div>
-      )}
+      <footer className="landing-footer">
+        <span>📚 My Bookshelves</span>
+        <span className="muted">Scan · Organize · Shelve</span>
+      </footer>
     </main>
   );
 }

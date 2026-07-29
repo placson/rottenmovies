@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import { deleteBook, updateBook, type BookUpdate } from "@/lib/db";
+import { getSessionUserId } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const unauthorized = () =>
+  NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   const { id } = await params;
 
   let body: any;
@@ -55,7 +61,7 @@ export async function PATCH(
   }
 
   try {
-    const book = await updateBook(id, patch);
+    const book = await updateBook(userId, id, patch);
     if (!book) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
@@ -73,9 +79,11 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
     const { id } = await params;
-    const removed = await deleteBook(id);
+    const removed = await deleteBook(userId, id);
     if (!removed) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }

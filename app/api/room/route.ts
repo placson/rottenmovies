@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 import { getSetting, setSetting } from "@/lib/db";
 import { DEFAULT_ROOM, type Room } from "@/lib/room";
+import { getSessionUserId } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const KEY = "room";
+const keyFor = (userId: string) => `room:${userId}`;
+const unauthorized = () =>
+  NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 export async function GET() {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
-    const raw = await getSetting(KEY);
+    const raw = await getSetting(keyFor(userId));
     if (!raw) return NextResponse.json({ room: null });
     return NextResponse.json({ room: JSON.parse(raw) as Room });
   } catch (err) {
@@ -19,6 +24,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
     const body = await request.json().catch(() => null);
     const room = body?.room as Room | undefined;
@@ -32,7 +39,7 @@ export async function PUT(request: Request) {
       length: Number(room.length) || DEFAULT_ROOM.length,
       furniture: room.furniture,
     };
-    await setSetting(KEY, JSON.stringify(safe));
+    await setSetting(keyFor(userId), JSON.stringify(safe));
     return NextResponse.json({ room: safe });
   } catch (err) {
     console.error("PUT /api/room failed", err);

@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable and lets the shell load
 // offline. API calls always go to the network so the library stays fresh.
-const CACHE = "book-lib-v1";
+const CACHE = "my-bookshelves-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -20,6 +20,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
+
+  // Never cache page navigations — auth gating happens on the server, so
+  // navigations must always hit the network.
+  if (request.mode === "navigate") return;
 
   const url = new URL(request.url);
   // Never cache API responses or cross-origin cover images.

@@ -272,7 +272,7 @@ export default function ShelfPage() {
   return (
     <main className="page shelf-page">
       <nav className="subnav no-print">
-        <Link href="/" className="nav-back">
+        <Link href="/library" className="nav-back">
           ← Library
         </Link>
         <h1>Shelf Plan</h1>
@@ -288,7 +288,7 @@ export default function ShelfPage() {
         <p className="empty">Planning your shelves…</p>
       ) : books.length === 0 ? (
         <p className="empty">
-          No books yet. <Link href="/">Add some</Link> and come back.
+          No books yet. <Link href="/library">Add some</Link> and come back.
         </p>
       ) : (
         <>
@@ -332,7 +332,7 @@ export default function ShelfPage() {
             <p className="note no-print">
               {uncategorized} book{uncategorized === 1 ? "" : "s"} still
               uncategorized (shelved at the end). Tap a spine to categorize, or
-              use <Link href="/">Auto-categorize</Link> on the library page.
+              use <Link href="/library">Auto-categorize</Link> on the library page.
             </p>
           )}
 

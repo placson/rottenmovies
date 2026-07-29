@@ -1,8 +1,8 @@
 {
-  "name": "Book Library Scanner",
-  "short_name": "My Library",
+  "name": "My Bookshelves",
+  "short_name": "Bookshelves",
   "description": "Scan book barcodes and build your personal library.",
-  "start_url": "/",
+  "start_url": "/library",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f1115",

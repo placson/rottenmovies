@@ -1,11 +1,11 @@
 import { getSetting, setSetting } from "./db";
 import { CATEGORIES } from "./categories";
 
-const KEY = "taxonomy";
+const keyFor = (userId: string) => `taxonomy:${userId}`;
 
-/** The effective category list: the user's saved taxonomy, or the built-ins. */
-export async function getTaxonomy(): Promise<string[]> {
-  const raw = await getSetting(KEY);
+/** The effective category list for a user: their saved taxonomy, or defaults. */
+export async function getTaxonomy(userId: string): Promise<string[]> {
+  const raw = await getSetting(keyFor(userId));
   if (raw) {
     try {
       const arr = JSON.parse(raw);
@@ -17,6 +17,9 @@ export async function getTaxonomy(): Promise<string[]> {
   return [...CATEGORIES];
 }
 
-export async function saveTaxonomy(list: string[]): Promise<void> {
-  await setSetting(KEY, JSON.stringify(list));
+export async function saveTaxonomy(
+  userId: string,
+  list: string[]
+): Promise<void> {
+  await setSetting(keyFor(userId), JSON.stringify(list));
 }

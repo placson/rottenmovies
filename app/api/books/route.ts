@@ -3,13 +3,19 @@ import { addBook, getBooks } from "@/lib/db";
 import { lookupIsbn, normalizeIsbn, isValidIsbn } from "@/lib/books";
 import { guessCategories } from "@/lib/categories";
 import { getTaxonomy } from "@/lib/taxonomy";
+import { getSessionUserId } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const unauthorized = () =>
+  NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
 export async function GET() {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
   try {
-    const books = await getBooks();
+    const books = await getBooks(userId);
     return NextResponse.json({ books });
   } catch (err) {
     console.error("GET /api/books failed", err);
@@ -21,6 +27,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
+
   let body: any;
   try {
     body = await request.json();
@@ -48,7 +57,7 @@ export async function POST(request: Request) {
 
     // Best-guess a single category; the user can refine in the editor.
     // Only assign guesses that still exist in the (possibly customized) taxonomy.
-    const taxonomy = await getTaxonomy();
+    const taxonomy = await getTaxonomy(userId);
     const guessed = guessCategories({
       title: data.title,
       authors: data.authors,
@@ -56,7 +65,7 @@ export async function POST(request: Request) {
       description: data.description,
     }).filter((c) => taxonomy.includes(c));
 
-    const { book, created } = await addBook({
+    const { book, created } = await addBook(userId, {
       isbn: data.isbn,
       title: data.title,
       authors: data.authors,

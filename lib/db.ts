@@ -84,7 +84,16 @@ async function getSql(): Promise<NeonQueryFunction<false, false>> {
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS rating INTEGER`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS goodreads_url TEXT`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS goodreads_rating REAL`;
+    await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS user_id TEXT`;
     await sql`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id            TEXT PRIMARY KEY,
+        email         TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
     tableReady = true;
   }
   return sql;
@@ -135,7 +144,9 @@ function rowToBook(row: Record<string, unknown>): Book {
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "books.json");
 
-function normalizeStored(b: Record<string, any>): Book {
+type StoredBook = Book & { user_id: string | null };
+
+function normalizeStored(b: Record<string, any>): StoredBook {
   return {
     id: String(b.id),
     isbn: String(b.isbn),
@@ -152,10 +163,11 @@ function normalizeStored(b: Record<string, any>): Book {
     goodreads_url: b.goodreads_url ?? null,
     goodreads_rating: b.goodreads_rating ?? null,
     added_at: b.added_at ?? new Date().toISOString(),
+    user_id: b.user_id ?? null,
   };
 }
 
-async function readFileStore(): Promise<Book[]> {
+async function readFileStore(): Promise<StoredBook[]> {
   try {
     const raw = await fs.readFile(DATA_FILE, "utf8");
     return (JSON.parse(raw) as Record<string, any>[]).map(normalizeStored);
@@ -164,7 +176,7 @@ async function readFileStore(): Promise<Book[]> {
   }
 }
 
-async function writeFileStore(books: Book[]): Promise<void> {
+async function writeFileStore(books: StoredBook[]): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(DATA_FILE, JSON.stringify(books, null, 2), "utf8");
 }
@@ -182,37 +194,51 @@ function withFileLock<T>(fn: () => Promise<T>): Promise<T> {
  * Public API                                                          *
  * ------------------------------------------------------------------ */
 
-export async function getBooks(): Promise<Book[]> {
+export async function getBooks(userId: string): Promise<Book[]> {
   if (usePostgres) {
     const sql = await getSql();
-    const rows = await sql`SELECT * FROM books ORDER BY added_at DESC`;
+    const rows = await sql`
+      SELECT * FROM books WHERE user_id = ${userId} ORDER BY added_at DESC
+    `;
     return rows.map(rowToBook);
   }
   const books = await readFileStore();
-  return books.sort((a, b) => b.added_at.localeCompare(a.added_at));
+  return books
+    .filter((b) => b.user_id === userId)
+    .sort((a, b) => b.added_at.localeCompare(a.added_at));
 }
 
-export async function getBookByIsbn(isbn: string): Promise<Book | null> {
+export async function getBookByIsbn(
+  userId: string,
+  isbn: string
+): Promise<Book | null> {
   if (usePostgres) {
     const sql = await getSql();
-    const rows = await sql`SELECT * FROM books WHERE isbn = ${isbn} LIMIT 1`;
+    const rows = await sql`
+      SELECT * FROM books WHERE user_id = ${userId} AND isbn = ${isbn} LIMIT 1
+    `;
     return rows.length ? rowToBook(rows[0]) : null;
   }
   const books = await readFileStore();
-  return books.find((b) => b.isbn === isbn) ?? null;
+  return books.find((b) => b.user_id === userId && b.isbn === isbn) ?? null;
 }
 
-export async function getBookById(id: string): Promise<Book | null> {
+export async function getBookById(
+  userId: string,
+  id: string
+): Promise<Book | null> {
   if (usePostgres) {
     const sql = await getSql();
-    const rows = await sql`SELECT * FROM books WHERE id = ${id} LIMIT 1`;
+    const rows = await sql`
+      SELECT * FROM books WHERE user_id = ${userId} AND id = ${id} LIMIT 1
+    `;
     return rows.length ? rowToBook(rows[0]) : null;
   }
   const books = await readFileStore();
-  return books.find((b) => b.id === id) ?? null;
+  return books.find((b) => b.user_id === userId && b.id === id) ?? null;
 }
 
-function buildBook(data: NewBook): Book {
+function buildBook(data: NewBook, userId: string): StoredBook {
   return {
     id: randomUUID(),
     added_at: new Date().toISOString(),
@@ -220,6 +246,7 @@ function buildBook(data: NewBook): Book {
     date_finished: null,
     rating: null,
     goodreads_rating: null,
+    user_id: userId,
     ...data,
   };
 }
@@ -249,31 +276,34 @@ function mergeBook(current: Book, patch: BookUpdate): Book {
 }
 
 export async function addBook(
+  userId: string,
   data: NewBook
 ): Promise<{ book: Book; created: boolean }> {
   if (usePostgres) {
-    // De-duplicate by ISBN: if we already have it, return the existing record.
-    const existing = await getBookByIsbn(data.isbn);
+    // De-duplicate by ISBN within this user's library.
+    const existing = await getBookByIsbn(userId, data.isbn);
     if (existing) return { book: existing, created: false };
 
-    const book = buildBook(data);
+    const book = buildBook(data, userId);
     const sql = await getSql();
     await sql`
       INSERT INTO books (id, isbn, title, authors, cover_url, published, publisher,
-                         page_count, categories, goodreads_url, added_at)
+                         page_count, categories, goodreads_url, added_at, user_id)
       VALUES (${book.id}, ${book.isbn}, ${book.title}, ${book.authors},
               ${book.cover_url}, ${book.published}, ${book.publisher},
               ${book.page_count}, ${JSON.stringify(book.categories)},
-              ${book.goodreads_url}, ${book.added_at})
+              ${book.goodreads_url}, ${book.added_at}, ${userId})
     `;
     return { book, created: true };
   }
 
   return withFileLock(async () => {
     const books = await readFileStore();
-    const existing = books.find((b) => b.isbn === data.isbn);
+    const existing = books.find(
+      (b) => b.user_id === userId && b.isbn === data.isbn
+    );
     if (existing) return { book: existing, created: false };
-    const book = buildBook(data);
+    const book = buildBook(data, userId);
     books.push(book);
     await writeFileStore(books);
     return { book, created: true };
@@ -281,11 +311,12 @@ export async function addBook(
 }
 
 export async function updateBook(
+  userId: string,
   id: string,
   patch: BookUpdate
 ): Promise<Book | null> {
   if (usePostgres) {
-    const current = await getBookById(id);
+    const current = await getBookById(userId, id);
     if (!current) return null;
     const merged = mergeBook(current, patch);
     const sql = await getSql();
@@ -297,32 +328,34 @@ export async function updateBook(
         rating           = ${merged.rating},
         goodreads_url    = ${merged.goodreads_url},
         goodreads_rating = ${merged.goodreads_rating}
-      WHERE id = ${id}
+      WHERE id = ${id} AND user_id = ${userId}
     `;
     return merged;
   }
 
   return withFileLock(async () => {
     const books = await readFileStore();
-    const idx = books.findIndex((b) => b.id === id);
+    const idx = books.findIndex((b) => b.user_id === userId && b.id === id);
     if (idx === -1) return null;
-    const merged = mergeBook(books[idx], patch);
+    const merged: StoredBook = { ...mergeBook(books[idx], patch), user_id: userId };
     books[idx] = merged;
     await writeFileStore(books);
     return merged;
   });
 }
 
-export async function deleteBook(id: string): Promise<boolean> {
+export async function deleteBook(userId: string, id: string): Promise<boolean> {
   if (usePostgres) {
     const sql = await getSql();
-    const rows = await sql`DELETE FROM books WHERE id = ${id} RETURNING id`;
+    const rows = await sql`
+      DELETE FROM books WHERE id = ${id} AND user_id = ${userId} RETURNING id
+    `;
     return rows.length > 0;
   }
 
   return withFileLock(async () => {
     const books = await readFileStore();
-    const next = books.filter((b) => b.id !== id);
+    const next = books.filter((b) => !(b.user_id === userId && b.id === id));
     if (next.length === books.length) return false;
     await writeFileStore(next);
     return true;
@@ -377,10 +410,11 @@ export async function setSetting(key: string, value: string): Promise<void> {
  * of books changed.
  */
 export async function replaceCategoryInBooks(
+  userId: string,
   from: string,
   to: string | null
 ): Promise<number> {
-  const books = await getBooks();
+  const books = await getBooks(userId);
   let changed = 0;
   for (const b of books) {
     if (!b.categories.includes(from)) continue;
@@ -388,10 +422,131 @@ export async function replaceCategoryInBooks(
       .map((c) => (c === from ? to : c))
       .filter((c): c is string => Boolean(c));
     const next = [...new Set(mapped)]; // dedupe, preserve order
-    await updateBook(b.id, { categories: next });
+    await updateBook(userId, b.id, { categories: next });
     changed++;
   }
   return changed;
+}
+
+/* ------------------------------------------------------------------ *
+ * Users / accounts                                                     *
+ * ------------------------------------------------------------------ */
+
+export type User = {
+  id: string;
+  email: string;
+  password_hash: string;
+  created_at: string;
+};
+
+const USERS_FILE = path.join(DATA_DIR, "users.json");
+
+async function readUsers(): Promise<User[]> {
+  try {
+    const raw = await fs.readFile(USERS_FILE, "utf8");
+    return JSON.parse(raw) as User[];
+  } catch {
+    return [];
+  }
+}
+async function writeUsers(users: User[]): Promise<void> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
+}
+
+const normEmail = (e: string) => e.trim().toLowerCase();
+
+export async function countUsers(): Promise<number> {
+  if (usePostgres) {
+    const sql = await getSql();
+    const rows = await sql`SELECT COUNT(*)::int AS n FROM users`;
+    return Number(rows[0]?.n ?? 0);
+  }
+  return (await readUsers()).length;
+}
+
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const e = normEmail(email);
+  if (usePostgres) {
+    const sql = await getSql();
+    const rows = await sql`SELECT * FROM users WHERE email = ${e} LIMIT 1`;
+    return rows.length ? (rows[0] as unknown as User) : null;
+  }
+  return (await readUsers()).find((u) => u.email === e) ?? null;
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+  if (usePostgres) {
+    const sql = await getSql();
+    const rows = await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1`;
+    return rows.length ? (rows[0] as unknown as User) : null;
+  }
+  return (await readUsers()).find((u) => u.id === id) ?? null;
+}
+
+export async function createUser(
+  id: string,
+  email: string,
+  passwordHash: string
+): Promise<User> {
+  const e = normEmail(email);
+  const user: User = {
+    id,
+    email: e,
+    password_hash: passwordHash,
+    created_at: new Date().toISOString(),
+  };
+  if (usePostgres) {
+    const sql = await getSql();
+    await sql`
+      INSERT INTO users (id, email, password_hash, created_at)
+      VALUES (${user.id}, ${user.email}, ${user.password_hash}, ${user.created_at})
+    `;
+    return user;
+  }
+  await withFileLock(async () => {
+    const users = await readUsers();
+    users.push(user);
+    await writeUsers(users);
+  });
+  return user;
+}
+
+/**
+ * One-time migration: claim any books/settings that predate accounts and give
+ * them to `userId`. Called when the very first user registers so the existing
+ * single-user library isn't stranded.
+ */
+export async function adoptOrphanData(userId: string): Promise<number> {
+  let adopted = 0;
+  if (usePostgres) {
+    const sql = await getSql();
+    const rows = await sql`
+      UPDATE books SET user_id = ${userId} WHERE user_id IS NULL RETURNING id
+    `;
+    adopted = rows.length;
+  } else {
+    await withFileLock(async () => {
+      const books = await readFileStore();
+      let changed = false;
+      for (const b of books) {
+        if (!b.user_id) {
+          b.user_id = userId;
+          adopted++;
+          changed = true;
+        }
+      }
+      if (changed) await writeFileStore(books);
+    });
+  }
+  // Migrate legacy (unscoped) taxonomy/room settings to this user's keys.
+  for (const legacy of ["taxonomy", "room"]) {
+    const value = await getSetting(legacy);
+    if (value) {
+      await setSetting(`${legacy}:${userId}`, value);
+    }
+  }
+  return adopted;
 }
 
 export const storageBackend = usePostgres ? "postgres" : "file";

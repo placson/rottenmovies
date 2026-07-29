@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getBooks, updateBook } from "@/lib/db";
 import { lookupIsbn } from "@/lib/books";
 import { guessCategories } from "@/lib/categories";
+import { getTaxonomy } from "@/lib/taxonomy";
+import { getSessionUserId } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +17,15 @@ export const maxDuration = 60;
  * never overwrite a manual choice.
  */
 export async function POST() {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
-    const books = await getBooks();
+    const [books, taxonomy] = await Promise.all([
+      getBooks(userId),
+      getTaxonomy(userId),
+    ]);
     const targets = books.filter((b) => b.categories.length === 0);
 
     let updated = 0;
@@ -33,9 +42,11 @@ export async function POST() {
             authors: data?.authors ?? book.authors,
             subjects: data?.subjects,
             description: data?.description,
-          });
+          }).filter((c) => taxonomy.includes(c));
           if (guessed.length) {
-            await updateBook(book.id, { categories: guessed.slice(0, 1) });
+            await updateBook(userId!, book.id, {
+              categories: guessed.slice(0, 1),
+            });
             updated++;
           }
         } catch {
