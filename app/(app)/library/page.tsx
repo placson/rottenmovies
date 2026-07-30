@@ -16,7 +16,7 @@ const CategoryManager = dynamic(
   { ssr: false }
 );
 
-type Toast = { text: string; kind: "ok" | "err" } | null;
+type Toast = { text: string; kind: "ok" | "err" | "warn" } | null;
 
 function readingStatus(b: Book): "read" | "reading" | "unread" {
   if (b.date_finished) return "read";
@@ -37,11 +37,15 @@ export default function Home() {
   const [toast, setToast] = useState<Toast>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [managingCats, setManagingCats] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
-  const showToast = useCallback((text: string, kind: "ok" | "err") => {
-    setToast({ text, kind });
-    window.setTimeout(() => setToast(null), 3200);
-  }, []);
+  const showToast = useCallback(
+    (text: string, kind: "ok" | "err" | "warn") => {
+      setToast({ text, kind });
+      window.setTimeout(() => setToast(null), kind === "warn" ? 4200 : 3200);
+    },
+    []
+  );
 
   const loadBooks = useCallback(async () => {
     try {
@@ -104,7 +108,29 @@ export default function Home() {
           setBooks((prev) => [data.book, ...prev]);
           showToast(`Added “${data.book.title}”`, "ok");
         } else {
-          showToast(`Already in your library: “${data.book.title}”`, "err");
+          // Duplicate re-scan — warn clearly, buzz differently, and flash the
+          // book that's already on the shelf.
+          showToast(
+            `⚠️ Already in your library — “${data.book.title}”`,
+            "warn"
+          );
+          if (typeof navigator !== "undefined" && navigator.vibrate) {
+            navigator.vibrate([70, 60, 70]);
+          }
+          const dupId = data.book.id as string;
+          // Make sure the existing book is visible so the flash is useful.
+          setActiveCat(null);
+          setQuery("");
+          setHighlightId(dupId);
+          window.setTimeout(() => {
+            document
+              .getElementById(`book-${dupId}`)
+              ?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 80);
+          window.setTimeout(
+            () => setHighlightId((id) => (id === dupId ? null : id)),
+            2800
+          );
         }
         setManualIsbn("");
       } catch {
@@ -305,7 +331,8 @@ export default function Home() {
             return (
               <li
                 key={book.id}
-                className="card"
+                id={`book-${book.id}`}
+                className={`card ${highlightId === book.id ? "dup-flash" : ""}`}
                 onClick={() => setEditing(book)}
               >
                 <div className="cover">

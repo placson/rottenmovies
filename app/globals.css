@@ -1899,3 +1899,29 @@ body {
 .room3d-wrap canvas {
   display: block;
 }
+
+/* ---------- duplicate re-scan warning ---------- */
+.toast.warn {
+  background: var(--accent-2);
+  color: #1a1200;
+  font-weight: 600;
+}
+.card.dup-flash {
+  animation: dupflash 2.6s ease-out;
+}
+@keyframes dupflash {
+  0% {
+    outline: 3px solid var(--accent-2);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(255, 182, 72, 0.35);
+  }
+  15% {
+    outline-color: var(--accent);
+    box-shadow: 0 0 0 8px rgba(255, 107, 74, 0.28);
+  }
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 0 rgba(255, 182, 72, 0);
+  }
+}
