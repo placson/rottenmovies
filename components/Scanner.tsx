@@ -5,18 +5,45 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import type { IScannerControls } from "@zxing/browser";
 
+export type ScanStatus = {
+  text: string;
+  kind: "ok" | "warn" | "err";
+} | null;
+
+export type ScanTally = { added: number; dupes: number; failed: number };
+
 type Props = {
   onDetected: (isbn: string) => void;
   onClose: () => void;
+  /** Live feedback shown inside the scanner while it stays open. */
+  status?: ScanStatus;
+  tally?: ScanTally;
 };
 
-export default function Scanner({ onDetected, onClose }: Props) {
+// Pace continuous scanning: ignore any read within this window of the last
+// accepted one, and block the *same* code for longer so lingering on a book
+// doesn't re-add it.
+const COOLDOWN_MS = 1300;
+const SAME_CODE_BLOCK_MS = 6000;
+
+export default function Scanner({
+  onDetected,
+  onClose,
+  status = null,
+  tally,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState(false);
+
+  // Keep the latest callback without restarting the camera on every render.
+  const onDetectedRef = useRef(onDetected);
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
 
   useEffect(() => {
     const hints = new Map();
-    // Book barcodes are EAN-13 (ISBN-13). Include a few related formats.
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [
       BarcodeFormat.EAN_13,
       BarcodeFormat.EAN_8,
@@ -26,7 +53,9 @@ export default function Scanner({ onDetected, onClose }: Props) {
 
     const reader = new BrowserMultiFormatReader(hints);
     let controls: IScannerControls | undefined;
-    let done = false;
+    let active = true;
+    let lastCode: string | null = null;
+    let lastAt = 0;
 
     reader
       .decodeFromConstraints(
@@ -34,12 +63,18 @@ export default function Scanner({ onDetected, onClose }: Props) {
         videoRef.current!,
         (result, _err, ctrl) => {
           controls = ctrl;
-          if (result && !done) {
-            done = true;
-            // Haptic feedback on supported phones.
-            if (navigator.vibrate) navigator.vibrate(80);
-            onDetected(result.getText());
-          }
+          if (!result || !active) return;
+          const text = result.getText();
+          const now = Date.now();
+          // Debounce: too soon since last accept, or same code held in view.
+          if (now - lastAt < COOLDOWN_MS) return;
+          if (text === lastCode && now - lastAt < SAME_CODE_BLOCK_MS) return;
+          lastCode = text;
+          lastAt = now;
+          if (navigator.vibrate) navigator.vibrate(45);
+          setFlash(true);
+          window.setTimeout(() => setFlash(false), 180);
+          onDetectedRef.current(text);
         }
       )
       .then((ctrl) => {
@@ -55,34 +90,48 @@ export default function Scanner({ onDetected, onClose }: Props) {
       });
 
     return () => {
-      done = true;
+      active = false;
       try {
         controls?.stop();
       } catch {
         /* ignore */
       }
     };
-  }, [onDetected]);
+  }, []);
 
   return (
     <div className="scanner-overlay" role="dialog" aria-label="Barcode scanner">
       <div className="scanner-top">
-        <span>Point at a book&rsquo;s barcode</span>
-        <button className="scanner-close" onClick={onClose} aria-label="Close scanner">
-          ✕
+        <span>Keep pointing at each book&rsquo;s barcode</span>
+        <button className="scanner-close" onClick={onClose} aria-label="Done scanning">
+          Done
         </button>
       </div>
 
       <div className="scanner-video-wrap">
         <video ref={videoRef} className="scanner-video" muted playsInline />
-        <div className="scanner-reticle" />
+        <div className={`scanner-reticle ${flash ? "hit" : ""}`} />
       </div>
 
-      {error ? (
-        <p className="scanner-error">{error}</p>
-      ) : (
-        <p className="scanner-hint">Hold steady — it scans automatically.</p>
-      )}
+      <div className="scanner-status">
+        {error ? (
+          <p className="scanner-error">{error}</p>
+        ) : status ? (
+          <p className={`scan-msg ${status.kind}`}>{status.text}</p>
+        ) : (
+          <p className="scanner-hint">
+            Scans keep going — no need to tap. Move to the next book after each
+            beep/buzz.
+          </p>
+        )}
+        {tally && (
+          <div className="scan-tally" aria-live="polite">
+            <span className="ok">✓ {tally.added} added</span>
+            <span className="warn">⚠ {tally.dupes} already had</span>
+            {tally.failed > 0 && <span className="err">✕ {tally.failed} missed</span>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

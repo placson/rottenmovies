@@ -38,6 +38,14 @@ export default function Home() {
   const [categories, setCategories] = useState<string[]>([]);
   const [managingCats, setManagingCats] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<
+    { text: string; kind: "ok" | "warn" | "err" } | null
+  >(null);
+  const [scanTally, setScanTally] = useState({
+    added: 0,
+    dupes: 0,
+    failed: 0,
+  });
 
   const showToast = useCallback(
     (text: string, kind: "ok" | "err" | "warn") => {
@@ -89,10 +97,10 @@ export default function Home() {
   );
 
   const addByIsbn = useCallback(
-    async (isbn: string) => {
+    async (isbn: string, fromScan = false) => {
       const clean = isbn.trim();
       if (!clean) return;
-      setBusy(true);
+      if (!fromScan) setBusy(true);
       try {
         const res = await fetch("/api/books", {
           method: "POST",
@@ -100,16 +108,40 @@ export default function Home() {
           body: JSON.stringify({ isbn: clean }),
         });
         const data = await res.json();
+
         if (!res.ok) {
-          showToast(data.error ?? "Couldn't add that book.", "err");
+          if (fromScan) {
+            setScanStatus({
+              text: data.error ?? "Couldn't add that one.",
+              kind: "err",
+            });
+            setScanTally((t) => ({ ...t, failed: t.failed + 1 }));
+          } else {
+            showToast(data.error ?? "Couldn't add that book.", "err");
+          }
           return;
         }
+
         if (data.created) {
           setBooks((prev) => [data.book, ...prev]);
-          showToast(`Added “${data.book.title}”`, "ok");
+          if (fromScan) {
+            setScanStatus({ text: `Added “${data.book.title}”`, kind: "ok" });
+            setScanTally((t) => ({ ...t, added: t.added + 1 }));
+          } else {
+            showToast(`Added “${data.book.title}”`, "ok");
+          }
+        } else if (fromScan) {
+          // Duplicate mid-scan: show it in the scanner, keep going.
+          setScanStatus({
+            text: `Already have “${data.book.title}”`,
+            kind: "warn",
+          });
+          setScanTally((t) => ({ ...t, dupes: t.dupes + 1 }));
+          if (typeof navigator !== "undefined" && navigator.vibrate) {
+            navigator.vibrate([70, 60, 70]);
+          }
         } else {
-          // Duplicate re-scan — warn clearly, buzz differently, and flash the
-          // book that's already on the shelf.
+          // Duplicate from manual entry — warn and flash the existing book.
           showToast(
             `⚠️ Already in your library — “${data.book.title}”`,
             "warn"
@@ -118,7 +150,6 @@ export default function Home() {
             navigator.vibrate([70, 60, 70]);
           }
           const dupId = data.book.id as string;
-          // Make sure the existing book is visible so the flash is useful.
           setActiveCat(null);
           setQuery("");
           setHighlightId(dupId);
@@ -132,23 +163,30 @@ export default function Home() {
             2800
           );
         }
-        setManualIsbn("");
+        if (!fromScan) setManualIsbn("");
       } catch {
-        showToast("Network error — is the site reachable?", "err");
+        if (fromScan) setScanStatus({ text: "Network error", kind: "err" });
+        else showToast("Network error — is the site reachable?", "err");
       } finally {
-        setBusy(false);
+        if (!fromScan) setBusy(false);
       }
     },
     [showToast]
   );
 
+  // Continuous scanning: keep the camera open and just record each result.
   const onDetected = useCallback(
     (code: string) => {
-      setScanning(false);
-      addByIsbn(code);
+      addByIsbn(code, true);
     },
     [addByIsbn]
   );
+
+  const openScanner = useCallback(() => {
+    setScanStatus(null);
+    setScanTally({ added: 0, dupes: 0, failed: 0 });
+    setScanning(true);
+  }, []);
 
   const reorganize = useCallback(async () => {
     setReorganizing(true);
@@ -224,7 +262,7 @@ export default function Home() {
           </Link>
           <button
             className="scan-btn"
-            onClick={() => setScanning(true)}
+            onClick={openScanner}
             disabled={busy}
           >
             <span className="scan-icon" aria-hidden>
@@ -377,7 +415,12 @@ export default function Home() {
       )}
 
       {scanning && (
-        <Scanner onDetected={onDetected} onClose={() => setScanning(false)} />
+        <Scanner
+          onDetected={onDetected}
+          onClose={() => setScanning(false)}
+          status={scanStatus}
+          tally={scanTally}
+        />
       )}
 
       {editing && (

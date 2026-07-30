@@ -1925,3 +1925,57 @@ body {
     box-shadow: 0 0 0 0 rgba(255, 182, 72, 0);
   }
 }
+
+/* ---------- continuous-scan status ---------- */
+.scanner-reticle.hit {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.45), 0 0 24px 4px var(--ok);
+  transition: box-shadow 0.05s ease, border-color 0.05s ease;
+}
+.scanner-status {
+  padding: 12px 20px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.scan-msg {
+  margin: 0;
+  max-width: 92vw;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scan-msg.ok {
+  background: var(--ok);
+  color: #06231a;
+}
+.scan-msg.warn {
+  background: var(--accent-2);
+  color: #1a1200;
+}
+.scan-msg.err {
+  background: var(--err);
+  color: #fff;
+}
+.scan-tally {
+  display: flex;
+  gap: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+.scan-tally .ok {
+  color: var(--ok);
+}
+.scan-tally .warn {
+  color: var(--accent-2);
+}
+.scan-tally .err {
+  color: var(--err);
+}
