@@ -42,13 +42,16 @@ export function placeFurniture(room: Room, f: Furniture): Placement3D {
   const h = toMeters(f.height, unit);
 
   if (f.corner) {
-    const cg = cornerGeometry(f); // center stored in (x,y), angle in degrees
+    const cg = cornerGeometry(f); // center in (x,y); angle = bisector, degrees
+    // The opening faces along the corner bisector (into the room). Our +Z
+    // (front) points in 2D direction (dx,dy) when angleY = atan2(dx,dy); the
+    // bisector direction is (cos A, sin A).
+    const a = cg.angle * DEG;
     return {
       id: f.id,
       cx: toMeters(cg.cx, unit),
       cz: toMeters(cg.cy, unit),
-      // SVG rotates clockwise; three rotates CCW about Y — negate to match.
-      angleRad: -cg.angle * DEG,
+      angleRad: Math.atan2(Math.cos(a), Math.sin(a)),
       w,
       d,
       h,
