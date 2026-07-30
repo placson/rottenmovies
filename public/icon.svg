@@ -6,18 +6,22 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- nest bowl -->
+  <path d="M92 322 C92 286 420 286 420 322 L420 338 C420 424 92 424 92 338 Z"
+        fill="#2e2109"/>
+
+  <!-- woven twig texture (behind the books) -->
+  <g stroke="#7a5a3a" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.85">
+    <path d="M120 338 q64 34 132 30"/>
+    <path d="M250 372 q72 -4 142 -34"/>
+    <path d="M150 366 q52 20 106 16"/>
+  </g>
+
+  <!-- books nestled in the nest -->
   <g fill="#1a1200">
-    <!-- book -->
-    <path d="M150 132h150c17 0 30 13 30 30v220c0-13-13-24-30-24H150z" opacity="0.92"/>
-    <path d="M362 132h-40c-13 0-24 10-26 24v226c2-14 13-24 26-24h40c8 0 14-6 14-14V146c0-8-6-14-14-14z" opacity="0.75"/>
-    <!-- barcode -->
-    <g>
-      <rect x="176" y="176" width="10" height="120" rx="3"/>
-      <rect x="196" y="176" width="6" height="120" rx="3"/>
-      <rect x="212" y="176" width="12" height="120" rx="3"/>
-      <rect x="234" y="176" width="6" height="120" rx="3"/>
-      <rect x="250" y="176" width="10" height="120" rx="3"/>
-      <rect x="270" y="176" width="6" height="120" rx="3"/>
-    </g>
+    <rect x="198" y="196" width="34" height="152" rx="9" transform="rotate(-7 215 272)"/>
+    <rect x="240" y="170" width="34" height="178" rx="9"/>
+    <rect x="282" y="200" width="34" height="150" rx="9" transform="rotate(7 299 275)"/>
   </g>
 </svg>

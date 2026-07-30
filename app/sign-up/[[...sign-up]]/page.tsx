@@ -6,7 +6,7 @@ export default function SignUpPage() {
     <main className="auth-page">
       <div className="auth-clerk">
         <Link href="/" className="auth-brand">
-          📚 My Bookshelves
+          🪺 Shelf Nest
         </Link>
         <SignUp fallbackRedirectUrl="/library" signInUrl="/sign-in" />
       </div>

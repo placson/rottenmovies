@@ -24,7 +24,7 @@ export default async function AppLayout({
     <>
       <header className="appbar no-print">
         <Link href="/library" className="appbar-brand">
-          📚 My Bookshelves
+          🪺 Shelf Nest
         </Link>
         <div className="appbar-right">
           {email && <span className="appbar-user">{email}</span>}

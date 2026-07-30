@@ -1,6 +1,6 @@
 {
-  "name": "My Bookshelves",
-  "short_name": "Bookshelves",
+  "name": "Shelf Nest",
+  "short_name": "Shelf Nest",
   "description": "Scan book barcodes and build your personal library.",
   "start_url": "/library",
   "display": "standalone",

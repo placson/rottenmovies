@@ -1,4 +1,4 @@
-# 📚 My Bookshelves
+# 🪺 Shelf Nest
 
 A phone-friendly, **multi-user** **Progressive Web App (PWA)** for building your
 personal book library — like [Libib](https://www.libib.com/) or

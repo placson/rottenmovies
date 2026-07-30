@@ -3,14 +3,14 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "My Bookshelves — scan, organize, and shelve your books",
+  title: "Shelf Nest — scan, organize, and shelve your books",
   description:
     "Turn your phone into a barcode scanner and your book collection into a beautifully organized, searchable library — then plan your real shelves.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "My Bookshelves",
+    title: "Shelf Nest",
   },
   icons: {
     icon: "/icon.svg",

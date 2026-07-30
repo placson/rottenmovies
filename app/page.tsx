@@ -40,7 +40,7 @@ export default async function Landing() {
   return (
     <main className="landing">
       <header className="landing-nav">
-        <span className="landing-logo">📚 My Bookshelves</span>
+        <span className="landing-logo">🪺 Shelf Nest</span>
         <nav className="landing-nav-links">
           {loggedIn ? (
             <Link href="/library" className="btn-solid">
@@ -67,7 +67,7 @@ export default async function Landing() {
           Organize your shelves.
         </h1>
         <p className="hero-sub">
-          My Bookshelves turns your phone into a barcode scanner and your
+          Shelf Nest turns your phone into a barcode scanner and your
           collection into a beautifully organized, searchable library — then
           helps you arrange it on your real shelves.
         </p>
@@ -116,7 +116,7 @@ export default async function Landing() {
       </section>
 
       <footer className="landing-footer">
-        <span>📚 My Bookshelves</span>
+        <span>🪺 Shelf Nest</span>
         <span className="muted">Scan · Organize · Shelve</span>
       </footer>
     </main>
