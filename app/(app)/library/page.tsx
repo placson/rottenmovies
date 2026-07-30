@@ -227,13 +227,20 @@ export default function Home() {
     [books]
   );
 
+  const lentCount = useMemo(
+    () => books.filter((b) => b.lent_to_name).length,
+    [books]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return books.filter((b) => {
       if (activeCat === "__uncat__" && b.categories.length > 0) return false;
+      if (activeCat === "__lent__" && !b.lent_to_name) return false;
       if (
         activeCat &&
         activeCat !== "__uncat__" &&
+        activeCat !== "__lent__" &&
         !b.categories.includes(activeCat)
       )
         return false;
@@ -318,7 +325,9 @@ export default function Home() {
         </button>
       </div>
 
-      {(categoryCounts.length > 0 || uncategorizedCount > 0) && (
+      {(categoryCounts.length > 0 ||
+        uncategorizedCount > 0 ||
+        lentCount > 0) && (
         <div className="cat-bar">
           <button
             className={`cat-filter ${activeCat === null ? "on" : ""}`}
@@ -335,6 +344,14 @@ export default function Home() {
               {cat} <span className="n">{n}</span>
             </button>
           ))}
+          {lentCount > 0 && (
+            <button
+              className={`cat-filter ${activeCat === "__lent__" ? "on" : ""}`}
+              onClick={() => setActiveCat("__lent__")}
+            >
+              📖 On loan <span className="n">{lentCount}</span>
+            </button>
+          )}
           {uncategorizedCount > 0 && (
             <button
               className={`cat-filter ${activeCat === "__uncat__" ? "on" : ""}`}
@@ -387,6 +404,11 @@ export default function Home() {
                       {status === "read" ? "Read" : "Reading"}
                     </span>
                   )}
+                  {book.lent_to_name && (
+                    <span className="lent-badge" title={`On loan to ${book.lent_to_name}`}>
+                      📖 Lent
+                    </span>
+                  )}
                 </div>
                 <div className="meta">
                   <p className="title" title={book.title}>
@@ -428,6 +450,12 @@ export default function Home() {
           book={editing}
           categories={categories}
           onCreateCategory={onCreateCategory}
+          onBookChanged={(updated) => {
+            setBooks((prev) =>
+              prev.map((b) => (b.id === updated.id ? updated : b))
+            );
+            setEditing((cur) => (cur && cur.id === updated.id ? updated : cur));
+          }}
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
             setBooks((prev) =>

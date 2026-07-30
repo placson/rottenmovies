@@ -18,6 +18,10 @@ export type Book = {
   rating: number | null; // 1..5, my rating
   goodreads_url: string | null;
   goodreads_rating: number | null; // e.g. 4.23
+  lent_to_name: string | null;
+  lent_to_email: string | null;
+  lent_at: string | null; // ISO date the book was lent
+  due_at: string | null; // ISO date it's ideally back by (lent + 30d)
   added_at: string;
 };
 
@@ -42,6 +46,10 @@ export type BookUpdate = Partial<{
   rating: number | null;
   goodreads_url: string | null;
   goodreads_rating: number | null;
+  lent_to_name: string | null;
+  lent_to_email: string | null;
+  lent_at: string | null;
+  due_at: string | null;
 }>;
 
 const CONNECTION_STRING =
@@ -85,6 +93,10 @@ async function getSql(): Promise<NeonQueryFunction<false, false>> {
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS goodreads_url TEXT`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS goodreads_rating REAL`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS user_id TEXT`;
+    await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS lent_to_name TEXT`;
+    await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS lent_to_email TEXT`;
+    await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS lent_at TEXT`;
+    await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS due_at TEXT`;
     await sql`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`;
     tableReady = true;
   }
@@ -122,6 +134,10 @@ function rowToBook(row: Record<string, unknown>): Book {
     goodreads_url: (row.goodreads_url as string) ?? null,
     goodreads_rating:
       row.goodreads_rating == null ? null : Number(row.goodreads_rating),
+    lent_to_name: (row.lent_to_name as string) ?? null,
+    lent_to_email: (row.lent_to_email as string) ?? null,
+    lent_at: (row.lent_at as string) ?? null,
+    due_at: (row.due_at as string) ?? null,
     added_at:
       added instanceof Date
         ? added.toISOString()
@@ -154,6 +170,10 @@ function normalizeStored(b: Record<string, any>): StoredBook {
     rating: b.rating ?? null,
     goodreads_url: b.goodreads_url ?? null,
     goodreads_rating: b.goodreads_rating ?? null,
+    lent_to_name: b.lent_to_name ?? null,
+    lent_to_email: b.lent_to_email ?? null,
+    lent_at: b.lent_at ?? null,
+    due_at: b.due_at ?? null,
     added_at: b.added_at ?? new Date().toISOString(),
     user_id: b.user_id ?? null,
   };
@@ -238,6 +258,10 @@ function buildBook(data: NewBook, userId: string): StoredBook {
     date_finished: null,
     rating: null,
     goodreads_rating: null,
+    lent_to_name: null,
+    lent_to_email: null,
+    lent_at: null,
+    due_at: null,
     user_id: userId,
     ...data,
   };
@@ -264,6 +288,16 @@ function mergeBook(current: Book, patch: BookUpdate): Book {
       patch.goodreads_rating !== undefined
         ? patch.goodreads_rating
         : current.goodreads_rating,
+    lent_to_name:
+      patch.lent_to_name !== undefined
+        ? patch.lent_to_name
+        : current.lent_to_name,
+    lent_to_email:
+      patch.lent_to_email !== undefined
+        ? patch.lent_to_email
+        : current.lent_to_email,
+    lent_at: patch.lent_at !== undefined ? patch.lent_at : current.lent_at,
+    due_at: patch.due_at !== undefined ? patch.due_at : current.due_at,
   };
 }
 
@@ -319,7 +353,11 @@ export async function updateBook(
         date_finished    = ${merged.date_finished},
         rating           = ${merged.rating},
         goodreads_url    = ${merged.goodreads_url},
-        goodreads_rating = ${merged.goodreads_rating}
+        goodreads_rating = ${merged.goodreads_rating},
+        lent_to_name     = ${merged.lent_to_name},
+        lent_to_email    = ${merged.lent_to_email},
+        lent_at          = ${merged.lent_at},
+        due_at           = ${merged.due_at}
       WHERE id = ${id} AND user_id = ${userId}
     `;
     return merged;

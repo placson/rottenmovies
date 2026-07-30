@@ -13,7 +13,22 @@ type Props = {
   categories?: string[];
   /** Create a new category; resolves with the created name. */
   onCreateCategory?: (name: string) => Promise<string | null>;
+  /** Update the book in the list without closing the editor (e.g. after lending). */
+  onBookChanged?: (book: Book) => void;
 };
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
 
 function StarPicker({
   value,
@@ -70,8 +85,19 @@ export default function BookEditor({
   onClose,
   categories: taxonomy = CATEGORIES,
   onCreateCategory,
+  onBookChanged,
 }: Props) {
   const [selected, setSelected] = useState<string[]>(book.categories ?? []);
+  const [loan, setLoan] = useState({
+    name: book.lent_to_name,
+    email: book.lent_to_email,
+    lentAt: book.lent_at,
+    dueAt: book.due_at,
+  });
+  const [borrowerName, setBorrowerName] = useState("");
+  const [borrowerEmail, setBorrowerEmail] = useState("");
+  const [lending, setLending] = useState(false);
+  const [lendMsg, setLendMsg] = useState<{ text: string; kind: "ok" | "warn" | "err" } | null>(null);
   const [extraCats, setExtraCats] = useState<string[]>([]);
   const [newCat, setNewCat] = useState("");
   const [creating, setCreating] = useState(false);
@@ -121,6 +147,74 @@ export default function BookEditor({
       setError(e instanceof Error ? e.message : "Could not add category.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const lendBook = async () => {
+    const name = borrowerName.trim();
+    const email = borrowerEmail.trim();
+    if (!name || !email || lending) return;
+    setLending(true);
+    setLendMsg(null);
+    try {
+      const res = await fetch(`/api/books/${book.id}/lend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLendMsg({ text: data.error ?? "Could not lend that book.", kind: "err" });
+        return;
+      }
+      const b = data.book as Book;
+      setLoan({
+        name: b.lent_to_name,
+        email: b.lent_to_email,
+        lentAt: b.lent_at,
+        dueAt: b.due_at,
+      });
+      onBookChanged?.(b);
+      const e = data.email;
+      if (e?.sent) {
+        setLendMsg({ text: `Reminder emailed to ${name}. 🪺`, kind: "ok" });
+      } else if (e?.reason === "not_configured") {
+        setLendMsg({
+          text: "Loan saved. Email isn't set up yet, so no reminder was sent.",
+          kind: "warn",
+        });
+      } else {
+        setLendMsg({
+          text: "Loan saved, but the reminder email failed to send.",
+          kind: "warn",
+        });
+      }
+      setBorrowerName("");
+      setBorrowerEmail("");
+    } catch {
+      setLendMsg({ text: "Network error while lending.", kind: "err" });
+    } finally {
+      setLending(false);
+    }
+  };
+
+  const returnBook = async () => {
+    setLending(true);
+    setLendMsg(null);
+    try {
+      const res = await fetch(`/api/books/${book.id}/lend`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setLendMsg({ text: data.error ?? "Could not update.", kind: "err" });
+        return;
+      }
+      setLoan({ name: null, email: null, lentAt: null, dueAt: null });
+      onBookChanged?.(data.book as Book);
+      setLendMsg({ text: "Marked as returned. Welcome home! 🪺", kind: "ok" });
+    } catch {
+      setLendMsg({ text: "Network error.", kind: "err" });
+    } finally {
+      setLending(false);
     }
   };
 
@@ -275,6 +369,58 @@ export default function BookEditor({
                 reviews or if the widget is unavailable.
               </p>
             </div>
+          </section>
+
+          <section>
+            <label className="field-label">Lending</label>
+            {loan.name ? (
+              <div className="loan-active">
+                <p className="loan-line">
+                  📖 On loan to <strong>{loan.name}</strong>
+                  {loan.email ? ` (${loan.email})` : ""}
+                </p>
+                <p className="loan-sub">
+                  Lent {fmtDate(loan.lentAt)}
+                  {loan.dueAt ? ` · ideally back by ${fmtDate(loan.dueAt)}` : ""}
+                </p>
+                <button
+                  type="button"
+                  className="btn-ghost sm"
+                  onClick={returnBook}
+                  disabled={lending}
+                >
+                  {lending ? "…" : "Mark as returned"}
+                </button>
+              </div>
+            ) : (
+              <div className="loan-form">
+                <input
+                  type="text"
+                  placeholder="Who's borrowing it? (name)"
+                  value={borrowerName}
+                  onChange={(e) => setBorrowerName(e.target.value)}
+                />
+                <input
+                  type="email"
+                  inputMode="email"
+                  placeholder="Their email"
+                  value={borrowerEmail}
+                  onChange={(e) => setBorrowerEmail(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn-primary sm"
+                  onClick={lendBook}
+                  disabled={lending || !borrowerName.trim() || !borrowerEmail.trim()}
+                >
+                  {lending ? "Lending…" : "Lend & email reminder"}
+                </button>
+                <p className="loan-hint">
+                  Sends a warm note asking for it back within ~30 days.
+                </p>
+              </div>
+            )}
+            {lendMsg && <p className={`loan-msg ${lendMsg.kind}`}>{lendMsg.text}</p>}
           </section>
 
           <section>

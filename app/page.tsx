@@ -31,6 +31,11 @@ export default async function Landing() {
       body: "Map your actual room — wide and narrow cases, corners at any angle, towers — then step inside a 3D view and orbit around your shelves.",
     },
     {
+      icon: "🤝",
+      title: "Lend with a smile",
+      body: "Lend a book to a friend and Shelf Nest emails them a warm reminder — not a stern library notice — to bring it home within about 30 days. Track who has what, with dates.",
+    },
+    {
       icon: "📲",
       title: "Works like an app",
       body: "Install it to your phone's home screen. No app store, no downloads — just open, scan, and go. Your library syncs everywhere.",

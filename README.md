@@ -127,6 +127,17 @@ Authentication is handled by [Clerk](https://clerk.com):
 > accounts existed, the *first* user to sign in automatically claims them (a
 > one-time migration), so your existing library isn't stranded.
 
+### 3c. (Optional) Set up email for lending reminders
+Lending works without email — the loan is always recorded — but to send the
+friendly borrow reminder, add a [Resend](https://resend.com) API key:
+
+- `RESEND_API_KEY` = `re_…` (from [resend.com](https://resend.com))
+- `LEND_FROM_EMAIL` = e.g. `Shelf Nest <lend@yourdomain.com>` (a Resend-verified
+  sender; defaults to `Shelf Nest <onboarding@resend.dev>` for quick testing)
+
+Without `RESEND_API_KEY`, lending still tracks the borrower/date and the UI just
+notes that no reminder was sent.
+
 ### 4. Install it on your phone
 - Open your Vercel URL (e.g. `https://your-app.vercel.app`) on your phone.
 - **iPhone (Safari):** Share → *Add to Home Screen*.
