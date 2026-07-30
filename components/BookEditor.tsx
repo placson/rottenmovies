@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Book } from "@/lib/db";
 import { CATEGORIES } from "@/lib/categories";
 
@@ -50,6 +50,19 @@ function StarPicker({
   );
 }
 
+function goodreadsReviewsUrl(book: Book): string {
+  const params = new URLSearchParams({
+    isbn: book.isbn,
+    links: "ff6b4a",
+    review_back: "ffffff",
+    stars: "ffb648",
+    text: "111827",
+    hide_last_page: "true",
+    header_text: `Goodreads reviews for ${book.title}`,
+  });
+  return `https://www.goodreads.com/api/reviews_widget_iframe?${params.toString()}`;
+}
+
 export default function BookEditor({
   book,
   onSaved,
@@ -71,6 +84,7 @@ export default function BookEditor({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reviewsUrl = useMemo(() => goodreadsReviewsUrl(book), [book]);
 
   // All chips to show: the taxonomy + this book's existing tags + any just-added.
   const allCategories = [
@@ -247,6 +261,20 @@ export default function BookEditor({
                 Open on Goodreads ↗
               </a>
             )}
+            <div className="gr-reviews">
+              <div className="gr-reviews-frame-wrap">
+                <iframe
+                  className="gr-reviews-frame"
+                  title={`Goodreads reviews for ${book.title}`}
+                  src={reviewsUrl}
+                  loading="lazy"
+                />
+              </div>
+              <p className="gr-note">
+                Reviews load from Goodreads. Open the Goodreads link for full
+                reviews or if the widget is unavailable.
+              </p>
+            </div>
           </section>
 
           <section>

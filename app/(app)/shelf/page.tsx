@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import type { Book } from "@/lib/db";
@@ -22,6 +22,7 @@ import {
   type PlannedShelf,
   type BayConfig,
 } from "@/lib/shelf";
+import { normalizeManualLayout } from "@/lib/shelfLayout";
 
 const BookEditor = nextDynamic(() => import("@/components/BookEditor"), {
   ssr: false,
@@ -41,7 +42,17 @@ function hashStr(s: string): number {
   return Math.abs(h);
 }
 
+function readLocalManual(): string[][] | null {
+  try {
+    const raw = localStorage.getItem(MANUAL_KEY);
+    return raw ? normalizeManualLayout(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ShelfPage() {
+  const manualSaveTimer = useRef<number | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [opts, setOpts] = useState<ShelfOptions>(DEFAULT_OPTIONS);
@@ -51,6 +62,9 @@ export default function ShelfPage() {
   // Manual drag layout: null = follow the auto plan; otherwise ordered id rows.
   const [manual, setManual] = useState<string[][] | null>(null);
   const [savedManual, setSavedManual] = useState<string[][] | null>(null);
+  const [manualSourceLoaded, setManualSourceLoaded] = useState(false);
+  const [manualHydrated, setManualHydrated] = useState(false);
+  const [layoutSyncError, setLayoutSyncError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropShelf, setDropShelf] = useState<number | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
@@ -70,15 +84,6 @@ export default function ShelfPage() {
     } catch {
       /* ignore */
     }
-    try {
-      const rawM = localStorage.getItem(MANUAL_KEY);
-      if (rawM) {
-        const rows = JSON.parse(rawM);
-        if (Array.isArray(rows)) setSavedManual(rows);
-      }
-    } catch {
-      /* ignore */
-    }
   }, []);
 
   useEffect(() => {
@@ -88,6 +93,52 @@ export default function ShelfPage() {
       /* ignore */
     }
   }, [opts, scale, useRoom]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const localManual = readLocalManual();
+
+    async function loadManualLayout() {
+      try {
+        const res = await fetch("/api/shelf-layout", { cache: "no-store" });
+        if (res.status === 401) {
+          window.location.href = "/sign-in";
+          return;
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Could not load layout.");
+        const serverManual = normalizeManualLayout(data.manual);
+        const hasSavedLayout = Boolean(data.hasSavedLayout);
+        if (cancelled) return;
+
+        if (serverManual) {
+          setSavedManual(serverManual);
+        } else if (!hasSavedLayout && localManual) {
+          setSavedManual(localManual);
+          fetch("/api/shelf-layout", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ manual: localManual }),
+          }).catch(() => {});
+        }
+        setLayoutSyncError(null);
+      } catch {
+        if (!cancelled) {
+          if (localManual) setSavedManual(localManual);
+          setLayoutSyncError(
+            "Could not load your synced layout. Using this device's copy."
+          );
+        }
+      } finally {
+        if (!cancelled) setManualSourceLoaded(true);
+      }
+    }
+
+    loadManualLayout();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -137,23 +188,47 @@ export default function ShelfPage() {
     [books]
   );
 
-  // Once books are loaded, adopt a saved manual layout (reconciled to the
-  // current library). Runs when the saved layout or the book set changes.
+  // Once books and the account setting are loaded, adopt the saved manual
+  // layout. Reconciliation drops deleted books and appends new ones.
   useEffect(() => {
-    if (savedManual && books.length && manual === null) {
+    if (!manualSourceLoaded || manualHydrated || loading) return;
+    if (savedManual && books.length) {
       setManual(reconcileManual(savedManual, books));
+    } else if (savedManual) {
+      setManual(savedManual);
     }
-  }, [savedManual, books, manual]);
+    setManualHydrated(true);
+  }, [savedManual, books, loading, manualSourceLoaded, manualHydrated]);
 
-  // Persist the manual layout (or clear it when back on the auto plan).
+  // Persist the manual layout to this account (and keep a device cache for
+  // offline/fallback loading).
   useEffect(() => {
-    try {
-      if (manual) localStorage.setItem(MANUAL_KEY, JSON.stringify(manual));
-      else localStorage.removeItem(MANUAL_KEY);
-    } catch {
-      /* ignore */
-    }
-  }, [manual]);
+    if (!manualHydrated) return;
+    if (manualSaveTimer.current) window.clearTimeout(manualSaveTimer.current);
+
+    manualSaveTimer.current = window.setTimeout(async () => {
+      try {
+        if (manual) localStorage.setItem(MANUAL_KEY, JSON.stringify(manual));
+        else localStorage.removeItem(MANUAL_KEY);
+
+        const res = await fetch("/api/shelf-layout", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ manual }),
+        });
+        if (!res.ok) throw new Error();
+        setLayoutSyncError(null);
+      } catch {
+        setLayoutSyncError(
+          "Shelf layout saved on this device, but not synced yet."
+        );
+      }
+    }, 500);
+
+    return () => {
+      if (manualSaveTimer.current) window.clearTimeout(manualSaveTimer.current);
+    };
+  }, [manual, manualHydrated]);
 
   // The shelves actually rendered: manual layout if present, else auto plan.
   const displayShelves = useMemo<PlannedShelf[]>(() => {
@@ -313,8 +388,11 @@ export default function ShelfPage() {
             </span>
             <span className="layout-hint">
               Drag a book spine to move it between shelves — your arrangement is
-              saved on this device.
+              saved to your account.
             </span>
+            {layoutSyncError && (
+              <span className="layout-sync-error">{layoutSyncError}</span>
+            )}
             {manual && (
               <button className="layout-reset" onClick={resetToAuto}>
                 Reset to auto
