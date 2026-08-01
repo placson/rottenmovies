@@ -177,7 +177,7 @@ export default function BookEditor({
       onBookChanged?.(b);
       const e = data.email;
       if (e?.sent) {
-        setLendMsg({ text: `Reminder emailed to ${name}. 🪺`, kind: "ok" });
+        setLendMsg({ text: `Reminder emailed to ${name}.`, kind: "ok" });
       } else if (e?.reason === "not_configured") {
         setLendMsg({
           text: "Loan saved. Email isn't set up yet, so no reminder was sent.",
@@ -210,7 +210,7 @@ export default function BookEditor({
       }
       setLoan({ name: null, email: null, lentAt: null, dueAt: null });
       onBookChanged?.(data.book as Book);
-      setLendMsg({ text: "Marked as returned. Welcome home! 🪺", kind: "ok" });
+      setLendMsg({ text: "Marked as returned. Welcome home.", kind: "ok" });
     } catch {
       setLendMsg({ text: "Network error.", kind: "err" });
     } finally {
@@ -282,12 +282,12 @@ export default function BookEditor({
             {book.authors && <p className="authors">{book.authors}</p>}
             <p className="sub">
               {book.published ? book.published.slice(0, 4) : ""}
-              {book.page_count ? ` · ${book.page_count} pp` : ""}
-              {` · ISBN ${book.isbn}`}
+              {book.page_count ? ` / ${book.page_count} pp` : ""}
+              {` / ISBN ${book.isbn}`}
             </p>
           </div>
           <button className="modal-close" onClick={onClose} aria-label="Close">
-            ✕
+            x
           </button>
         </div>
 
@@ -328,7 +328,7 @@ export default function BookEditor({
               <input
                 type="url"
                 inputMode="url"
-                placeholder="https://www.goodreads.com/…"
+                placeholder="https://www.goodreads.com/..."
                 value={goodreadsUrl}
                 onChange={(e) => setGoodreadsUrl(e.target.value)}
               />
@@ -352,7 +352,7 @@ export default function BookEditor({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open on Goodreads ↗
+                Open on Goodreads
               </a>
             )}
             <div className="gr-reviews">
@@ -376,12 +376,12 @@ export default function BookEditor({
             {loan.name ? (
               <div className="loan-active">
                 <p className="loan-line">
-                  📖 On loan to <strong>{loan.name}</strong>
+                  On loan to <strong>{loan.name}</strong>
                   {loan.email ? ` (${loan.email})` : ""}
                 </p>
                 <p className="loan-sub">
                   Lent {fmtDate(loan.lentAt)}
-                  {loan.dueAt ? ` · ideally back by ${fmtDate(loan.dueAt)}` : ""}
+                  {loan.dueAt ? ` / ideally back by ${fmtDate(loan.dueAt)}` : ""}
                 </p>
                 <button
                   type="button"
@@ -389,7 +389,7 @@ export default function BookEditor({
                   onClick={returnBook}
                   disabled={lending}
                 >
-                  {lending ? "…" : "Mark as returned"}
+                  {lending ? "..." : "Mark as returned"}
                 </button>
               </div>
             ) : (
@@ -413,7 +413,7 @@ export default function BookEditor({
                   onClick={lendBook}
                   disabled={lending || !borrowerName.trim() || !borrowerEmail.trim()}
                 >
-                  {lending ? "Lending…" : "Lend & email reminder"}
+                  {lending ? "Lending..." : "Lend & email reminder"}
                 </button>
                 <p className="loan-hint">
                   Sends a warm note asking for it back within ~30 days.
@@ -445,7 +445,7 @@ export default function BookEditor({
             <div className="cat-new">
               <input
                 type="text"
-                placeholder="New category…"
+                placeholder="New category..."
                 value={newCat}
                 onChange={(e) => setNewCat(e.target.value)}
                 onKeyDown={(e) => {
@@ -460,7 +460,7 @@ export default function BookEditor({
                 onClick={addNewCategory}
                 disabled={!newCat.trim() || creating}
               >
-                {creating ? "Adding…" : "+ Add"}
+                {creating ? "Adding..." : "+ Add"}
               </button>
             </div>
           </section>
@@ -477,7 +477,7 @@ export default function BookEditor({
             Cancel
           </button>
           <button className="btn-primary" onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>

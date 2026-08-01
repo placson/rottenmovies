@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { getLocalAuthUserId, isLocalAuthBypassed } from "@/lib/local-auth";
 
 /**
  * The current signed-in user's id (Clerk user id), or null.
@@ -6,6 +7,8 @@ import { auth } from "@clerk/nextjs/server";
  * already imports it continues to work unchanged.
  */
 export async function getSessionUserId(): Promise<string | null> {
+  if (isLocalAuthBypassed()) return getLocalAuthUserId();
+
   const { userId } = await auth();
   return userId ?? null;
 }

@@ -143,7 +143,7 @@ export default function Home() {
         } else {
           // Duplicate from manual entry — warn and flash the existing book.
           showToast(
-            `⚠️ Already in your library — “${data.book.title}”`,
+            `Already in your library: "${data.book.title}"`,
             "warn"
           );
           if (typeof navigator !== "undefined" && navigator.vibrate) {
@@ -166,7 +166,7 @@ export default function Home() {
         if (!fromScan) setManualIsbn("");
       } catch {
         if (fromScan) setScanStatus({ text: "Network error", kind: "err" });
-        else showToast("Network error — is the site reachable?", "err");
+        else showToast("Network error. Is the site reachable?", "err");
       } finally {
         if (!fromScan) setBusy(false);
       }
@@ -265,16 +265,13 @@ export default function Home() {
         </div>
         <div className="header-actions">
           <Link href="/shelf" className="shelf-link">
-            🗄 Shelf Plan
+            Shelf Plan
           </Link>
           <button
             className="scan-btn"
             onClick={openScanner}
             disabled={busy}
           >
-            <span className="scan-icon" aria-hidden>
-              ▚
-            </span>
             Scan
           </button>
         </div>
@@ -290,7 +287,7 @@ export default function Home() {
         >
           <input
             inputMode="numeric"
-            placeholder="Enter ISBN manually…"
+            placeholder="Enter ISBN manually..."
             value={manualIsbn}
             onChange={(e) => setManualIsbn(e.target.value)}
           />
@@ -301,7 +298,7 @@ export default function Home() {
         {books.length > 0 && (
           <input
             className="search"
-            placeholder="Search title, author, ISBN, category…"
+            placeholder="Search title, author, ISBN, category..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -313,15 +310,15 @@ export default function Home() {
             disabled={reorganizing}
           >
             {reorganizing
-              ? "Categorizing…"
-              : `✨ Auto-categorize ${uncategorizedCount} uncategorized`}
+              ? "Categorizing..."
+              : `Auto-categorize ${uncategorizedCount} uncategorized`}
           </button>
         )}
         <button
           className="manage-cats-btn"
           onClick={() => setManagingCats(true)}
         >
-          ⚙ Manage categories
+          Manage categories
         </button>
       </div>
 
@@ -349,7 +346,7 @@ export default function Home() {
               className={`cat-filter ${activeCat === "__lent__" ? "on" : ""}`}
               onClick={() => setActiveCat("__lent__")}
             >
-              📖 On loan <span className="n">{lentCount}</span>
+              On loan <span className="n">{lentCount}</span>
             </button>
           )}
           {uncategorizedCount > 0 && (
@@ -364,7 +361,7 @@ export default function Home() {
       )}
 
       {loading ? (
-        <p className="empty">Loading your library…</p>
+        <p className="empty">Loading your library...</p>
       ) : filtered.length === 0 ? (
         <div className="empty">
           {books.length === 0 ? (
@@ -406,7 +403,7 @@ export default function Home() {
                   )}
                   {book.lent_to_name && (
                     <span className="lent-badge" title={`On loan to ${book.lent_to_name}`}>
-                      📖 Lent
+                      Lent
                     </span>
                   )}
                 </div>

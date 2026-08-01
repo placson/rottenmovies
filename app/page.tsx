@@ -4,49 +4,91 @@ import { getSessionUserId } from "@/lib/auth";
 export default async function Landing() {
   const loggedIn = Boolean(await getSessionUserId());
 
+  const featuredBooks = [
+    {
+      title: "Mere Christianity",
+      author: "C. S. Lewis",
+      cover: "https://covers.openlibrary.org/b/id/9184573-L.jpg",
+      note: "Theology",
+    },
+    {
+      title: "The Hobbit",
+      author: "J. R. R. Tolkien",
+      cover: "https://covers.openlibrary.org/b/id/14624309-L.jpg",
+      note: "Fiction",
+    },
+    {
+      title: "Pride and Prejudice",
+      author: "Jane Austen",
+      cover: "https://covers.openlibrary.org/b/id/14619629-L.jpg",
+      note: "Classics",
+    },
+    {
+      title: "The Lion, the Witch and the Wardrobe",
+      author: "C. S. Lewis",
+      cover: "https://covers.openlibrary.org/b/id/14371458-L.jpg",
+      note: "Fantasy",
+    },
+    {
+      title: "The Brothers Karamazov",
+      author: "Fyodor Dostoyevsky",
+      cover: "https://covers.openlibrary.org/b/id/6620943-L.jpg",
+      note: "Literature",
+    },
+  ];
+
   const features = [
     {
-      icon: "📷",
-      title: "Scan any barcode",
-      body: "Point your phone at a book's ISBN barcode and it's added in seconds — cover, author, year, and page count filled in automatically.",
+      eyebrow: "Scan",
+      title: "Scan the stack",
+      body: "Point your camera at the ISBN. Covers, authors, years, and page counts show up without the spreadsheet ritual.",
     },
     {
-      icon: "🏷️",
-      title: "Smart categories",
-      body: "Every book is auto-sorted into your own taxonomy. Create, rename, and merge categories however you think about your collection.",
+      eyebrow: "Sort",
+      title: "Name your shelves",
+      body: "Theology, fiction, odd rabbit trails, half-built obsessions. Make categories that sound like your actual library.",
     },
     {
-      icon: "⭐",
-      title: "Track your reading",
-      body: "Your rating, start and finish dates, and a Goodreads link on every book. Search and filter your whole library instantly.",
+      eyebrow: "Track",
+      title: "Keep the trail",
+      body: "Ratings, dates, Goodreads links, false starts, old favorites. See the story your reading life is quietly leaving behind.",
     },
     {
-      icon: "🗄️",
-      title: "Plan your shelves",
-      body: "See your books laid onto to-scale bookcases, sized by page count. Print a shelf-by-shelf plan to arrange your real shelves.",
+      eyebrow: "Plan",
+      title: "Make shelves behave",
+      body: "Turn the pile into a measured shelf plan, sized by page count, before your floor becomes a literary crime scene.",
     },
     {
-      icon: "🗺️",
-      title: "Design your room in 3D",
-      body: "Map your actual room — wide and narrow cases, corners at any angle, towers — then step inside a 3D view and orbit around your shelves.",
+      eyebrow: "Place",
+      title: "Map the room",
+      body: "Drop in the bookcases, corners, and towers. Preview the whole setup before moving one suspiciously heavy shelf.",
     },
     {
-      icon: "🤝",
-      title: "Lend with a smile",
-      body: "Lend a book to a friend and Shelf Nest emails them a warm reminder — not a stern library notice — to bring it home within about 30 days. Track who has what, with dates.",
+      eyebrow: "Lend",
+      title: "Loan without the chase",
+      body: "Let books go adventuring with a name and date attached. Send the reminder before friendship gets weird.",
     },
     {
-      icon: "📲",
-      title: "Works like an app",
-      body: "Install it to your phone's home screen. No app store, no downloads — just open, scan, and go. Your library syncs everywhere.",
+      eyebrow: "Carry",
+      title: "Pocket the whole thing",
+      body: "Keep your catalog on your phone for bookstores, church halls, and used-book aisles where restraint goes to die.",
     },
   ];
 
   return (
     <main className="landing">
       <header className="landing-nav">
-        <span className="landing-logo">🪺 Shelf Nest</span>
+        <span className="landing-logo">
+          <span className="brand-dot" aria-hidden />
+          Shelf Nest
+        </span>
         <nav className="landing-nav-links">
+          <a href="#library" className="landing-tab">
+            Library
+          </a>
+          <a href="#shelves" className="landing-tab">
+            Shelves
+          </a>
           {loggedIn ? (
             <Link href="/library" className="btn-solid">
               Open my library
@@ -65,47 +107,81 @@ export default async function Landing() {
       </header>
 
       <section className="hero">
-        <div className="hero-badge">Your whole library, in your pocket</div>
-        <h1>
-          Scan your books.
-          <br />
-          Organize your shelves.
-        </h1>
-        <p className="hero-sub">
-          Shelf Nest turns your phone into a barcode scanner and your
-          collection into a beautifully organized, searchable library — then
-          helps you arrange it on your real shelves.
-        </p>
-        <div className="hero-cta">
-          <Link href={loggedIn ? "/library" : "/sign-up"} className="btn-solid lg">
-            {loggedIn ? "Open my library" : "Start your library — free"}
+        <div className="hero-copy">
+          <p className="hero-badge">Personal library, beautifully kept</p>
+          <h1>Shelf Nest</h1>
+          <p className="hero-sub">
+            Scan your books, search every shelf, and plan where each volume
+            belongs in the room you actually live with.
+          </p>
+          <Link
+            href={loggedIn ? "/library" : "/sign-up"}
+            className="hero-search"
+          >
+            <span>Search by ISBN, title, author, or category</span>
+            <strong>{loggedIn ? "Open" : "Start"}</strong>
           </Link>
-          {!loggedIn && (
-            <Link href="/sign-in" className="btn-outline lg">
-              I already have an account
+          <div className="hero-cta">
+            <Link
+              href={loggedIn ? "/library" : "/sign-up"}
+              className="btn-solid lg"
+            >
+              {loggedIn ? "Open my library" : "Start your library"}
             </Link>
-          )}
+            {!loggedIn && (
+              <Link href="/sign-in" className="btn-outline lg">
+                Sign in
+              </Link>
+            )}
+          </div>
         </div>
-        <div className="hero-shelf" aria-hidden>
-          {Array.from({ length: 24 }).map((_, i) => (
-            <span
-              key={i}
-              className="hero-spine"
-              style={{
-                height: `${60 + ((i * 37) % 40)}%`,
-                background: `hsl(${(i * 47) % 360} 45% 52%)`,
-              }}
-            />
+        <div className="hero-art" aria-hidden>
+          <div className="hero-device">
+            <div className="hero-device-top">
+              <span>Today</span>
+              <strong>5 new books</strong>
+            </div>
+            <div className="hero-cover-stack">
+              {featuredBooks.slice(0, 3).map((book) => (
+                <img key={book.title} src={book.cover} alt="" />
+              ))}
+            </div>
+            <div className="hero-note">
+              <span>Next shelf</span>
+              <strong>Doctrine and devotion</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="library" className="store-section">
+        <div className="section-head">
+          <div>
+            <p className="section-kicker">A library that feels browsable</p>
+            <h2>Recently organized</h2>
+          </div>
+          <Link href={loggedIn ? "/library" : "/sign-up"} className="section-link">
+            View library
+          </Link>
+        </div>
+        <div className="book-rail">
+          {featuredBooks.map((book) => (
+            <article className="rail-book" key={book.title}>
+              <div className="rail-cover">
+                <img src={book.cover} alt="" loading="lazy" />
+              </div>
+              <p className="rail-title">{book.title}</p>
+              <p className="rail-author">{book.author}</p>
+              <p className="rail-note">{book.note}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      <section className="features">
+      <section className="features" id="shelves">
         {features.map((f) => (
           <div key={f.title} className="feature">
-            <div className="feature-icon" aria-hidden>
-              {f.icon}
-            </div>
+            <p className="feature-eyebrow">{f.eyebrow}</p>
             <h3>{f.title}</h3>
             <p>{f.body}</p>
           </div>
@@ -113,16 +189,17 @@ export default async function Landing() {
       </section>
 
       <section className="closing">
-        <h2>Ready to see your whole collection?</h2>
-        <p>Create a free account and scan your first book in under a minute.</p>
+        <p className="section-kicker">Shelf planning, minus the spreadsheet</p>
+        <h2>From barcode to bookcase.</h2>
+        <p>Create a free account and scan your first shelf in under a minute.</p>
         <Link href={loggedIn ? "/library" : "/sign-up"} className="btn-solid lg">
           {loggedIn ? "Open my library" : "Get started"}
         </Link>
       </section>
 
       <footer className="landing-footer">
-        <span>🪺 Shelf Nest</span>
-        <span className="muted">Scan · Organize · Shelve</span>
+        <span>Shelf Nest</span>
+        <span className="muted">Scan / organize / shelve</span>
       </footer>
     </main>
   );

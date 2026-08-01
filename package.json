@@ -4,7 +4,8 @@
   "private": true,
   "description": "Scan book barcodes on your phone and store them in a personal library hosted on Vercel.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
+    "dev:turbo": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

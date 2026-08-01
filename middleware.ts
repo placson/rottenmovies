@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { isLocalAuthBypassed } from "@/lib/local-auth";
 
 // Everything except the public landing page, Clerk's own routes, and static
 // assets requires a signed-in user.
@@ -14,6 +15,7 @@ const isProtected = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  if (isLocalAuthBypassed()) return;
   if (isProtected(req)) await auth.protect();
 });
 

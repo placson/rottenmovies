@@ -120,15 +120,15 @@ export default function Scanner({
           <p className={`scan-msg ${status.kind}`}>{status.text}</p>
         ) : (
           <p className="scanner-hint">
-            Scans keep going — no need to tap. Move to the next book after each
+            Scans keep going. Move to the next book after each
             beep/buzz.
           </p>
         )}
         {tally && (
           <div className="scan-tally" aria-live="polite">
-            <span className="ok">✓ {tally.added} added</span>
-            <span className="warn">⚠ {tally.dupes} already had</span>
-            {tally.failed > 0 && <span className="err">✕ {tally.failed} missed</span>}
+            <span className="ok">{tally.added} added</span>
+            <span className="warn">{tally.dupes} already had</span>
+            {tally.failed > 0 && <span className="err">{tally.failed} missed</span>}
           </div>
         )}
       </div>

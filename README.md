@@ -157,6 +157,25 @@ npm run dev
 # open http://localhost:3000
 ```
 
+`npm run dev` uses webpack in local development because Turbopack can
+intermittently crash the React Server Components stream during Clerk's local
+sign-in redirect. If you want to test Turbopack anyway, run:
+
+```bash
+npm run dev:turbo
+```
+
+To bypass Clerk entirely for local testing, add this to `.env.local`:
+
+```bash
+LOCAL_AUTH_BYPASS=true
+LOCAL_AUTH_USER_ID=local-dev-user
+```
+
+With that flag on, `/library`, `/shelf`, `/room`, and the app APIs run as the
+local user above, and `/sign-in` or `/sign-up` redirects straight to the
+library. Do not set `LOCAL_AUTH_BYPASS` in production; the app ignores it there.
+
 Locally, with no database configured, books are saved to `./.data/books.json`
 (git-ignored). To test against a real database locally, put a connection string
 in `.env.local`:

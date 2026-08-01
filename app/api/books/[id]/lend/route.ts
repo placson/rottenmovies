@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { getBookById, updateBook } from "@/lib/db";
 import { getSessionUserId } from "@/lib/auth";
+import { isLocalAuthBypassed } from "@/lib/local-auth";
 import { sendLoanEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -67,7 +68,7 @@ export async function POST(
     });
     if (!book) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
-    const user = await currentUser();
+    const user = isLocalAuthBypassed() ? null : await currentUser();
     const emailResult = await sendLoanEmail({
       toEmail: email,
       borrowerName: name,

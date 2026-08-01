@@ -30,10 +30,10 @@ const KIND_COLORS: Record<string, string> = {
 const colorFor = (kind: string) => KIND_COLORS[kind] ?? "#7a6a52";
 
 const CORNER_LABEL: Record<Corner, string> = {
-  tl: "↖ TL",
-  tr: "↗ TR",
-  br: "↘ BR",
-  bl: "↙ BL",
+  tl: "TL",
+  tr: "TR",
+  br: "BR",
+  bl: "BL",
 };
 
 const WALLS: Wall[] = ["top", "left", "bottom", "right"];
@@ -198,7 +198,7 @@ export default function RoomPlanner() {
   };
 
   const save = useCallback(async () => {
-    setStatus("Saving…");
+    setStatus("Saving...");
     try {
       const res = await fetch("/api/room", {
         method: "PUT",
@@ -242,7 +242,7 @@ export default function RoomPlanner() {
     <main className="page room-page">
       <nav className="subnav">
         <Link href="/shelf" className="nav-back">
-          ← Shelf Plan
+          Shelf Plan
         </Link>
         <h1>Room Planner</h1>
         <button className="nav-print" onClick={save} disabled={!dirty}>
@@ -251,7 +251,7 @@ export default function RoomPlanner() {
       </nav>
 
       {loading ? (
-        <p className="empty">Loading your room…</p>
+        <p className="empty">Loading your room...</p>
       ) : (
         <>
           <div className="room-toolbar">
@@ -450,8 +450,8 @@ export default function RoomPlanner() {
                 })}
               </svg>
               <p className="canvas-hint">
-                Drag any piece (including corners) to place it · the light edge
-                is the shelf front · pick a wall or corner in the panel · numbers
+                Drag any piece (including corners) to place it. The light edge
+                is the shelf front. Pick a wall or corner in the panel. Numbers
                 are the fill order
               </p>
             </div>
@@ -595,11 +595,11 @@ export default function RoomPlanner() {
 
                   <div className="props-actions">
                     <span className="usable">
-                      Usable shelf: {selected.width} {unitLabel} ×{" "}
+                      Usable shelf: {selected.width} {unitLabel} x{" "}
                       {selected.shelves + (selected.extension ? 1 : 0)} shelves
                       {selected.corner
-                        ? " · corner-mounted (drag to reposition)"
-                        : ` · against ${rotationWall(selected.rotation)} wall`}
+                        ? " / corner-mounted (drag to reposition)"
+                        : ` / against ${rotationWall(selected.rotation)} wall`}
                     </span>
                   </div>
                 </>

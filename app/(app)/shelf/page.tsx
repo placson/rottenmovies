@@ -30,7 +30,7 @@ const BookEditor = nextDynamic(() => import("@/components/BookEditor"), {
 // three.js is heavy and browser-only — load it only when the 3D view opens.
 const Room3D = nextDynamic(() => import("@/components/Room3D"), {
   ssr: false,
-  loading: () => <p className="empty">Loading 3D…</p>,
+  loading: () => <p className="empty">Loading 3D...</p>,
 });
 
 const OPT_KEY = "shelfPlan.options.v1";
@@ -363,19 +363,19 @@ export default function ShelfPage() {
     <main className="page shelf-page">
       <nav className="subnav no-print">
         <Link href="/library" className="nav-back">
-          ← Library
+          Library
         </Link>
         <h1>Shelf Plan</h1>
         <Link href="/room" className="nav-room no-print">
-          🗺 Room Planner
+          Room Planner
         </Link>
         <button className="nav-print" onClick={() => window.print()}>
-          🖨 Print
+          Print
         </button>
       </nav>
 
       {loading ? (
-        <p className="empty">Planning your shelves…</p>
+        <p className="empty">Planning your shelves...</p>
       ) : books.length === 0 ? (
         <p className="empty">
           No books yet. <Link href="/library">Add some</Link> and come back.
@@ -384,10 +384,10 @@ export default function ShelfPage() {
         <>
           <div className="layout-bar no-print">
             <span className={`layout-pill ${manual ? "custom" : "auto"}`}>
-              {manual ? "✎ Custom layout" : "◆ Auto layout"}
+              {manual ? "Custom layout" : "Auto layout"}
             </span>
             <span className="layout-hint">
-              Drag a book spine to move it between shelves — your arrangement is
+              Drag a book spine to move it between shelves. Your arrangement is
               saved to your account.
             </span>
             {layoutSyncError && (
@@ -442,7 +442,7 @@ export default function ShelfPage() {
               Use my room layout{" "}
               <Link href="/room" className="inline-link">
                 {room && room.furniture.length
-                  ? `(${room.furniture.length} pieces · edit)`
+                  ? `(${room.furniture.length} pieces / edit)`
                   : "(set one up)"}
               </Link>
             </label>
@@ -535,7 +535,7 @@ export default function ShelfPage() {
             {customBays && (
               <div className="bay-editor">
                 <p className="bay-editor-hint">
-                  List your bookcases left → right (IKEA BILLY: wide = 76 cm,
+                  List your bookcases from left to right (IKEA BILLY: wide = 76 cm,
                   narrow = 36 cm, 6 shelves + 1 for the extension).
                 </p>
                 {customBays.map((b, i) => (
@@ -584,7 +584,7 @@ export default function ShelfPage() {
                       onClick={() => removeBay(i)}
                       aria-label="Remove bookcase"
                     >
-                      ✕
+                      x
                     </button>
                   </div>
                 ))}
@@ -621,7 +621,7 @@ export default function ShelfPage() {
                 className={view === "flat" ? "on" : ""}
                 onClick={() => setView("flat")}
               >
-                ▚ Flat plan
+                Flat plan
               </button>
               <button
                 className={view === "3d" ? "on" : ""}
@@ -631,7 +631,7 @@ export default function ShelfPage() {
                   setView("3d");
                 }}
               >
-                🧊 3D room
+                3D room
               </button>
             </div>
           )}
@@ -640,7 +640,7 @@ export default function ShelfPage() {
             <div className="no-print">
               <Room3D room={room!} shelvesByBay={shelvesByBay} />
               <p className="canvas-hint">
-                Drag to orbit · scroll/pinch to zoom · right-drag to pan. Books
+                Drag to orbit, scroll/pinch to zoom, right-drag to pan. Books
                 are placed exactly as the plan below says.
               </p>
             </div>
@@ -658,7 +658,7 @@ export default function ShelfPage() {
                   style={{ width: bayInnerWidth + 26 }}
                 >
                   <div className="bay-label">
-                    Bookcase {bi + 1} · {Math.round(bayCapMm / 10)} cm
+                    Bookcase {bi + 1} / {Math.round(bayCapMm / 10)} cm
                   </div>
                   <div className="bay-frame">
                     {shelves.map((sh) => {
@@ -704,8 +704,8 @@ export default function ShelfPage() {
                                   background: it.color,
                                 }}
                                 title={`${it.book.title}${
-                                  it.book.authors ? " — " + it.book.authors : ""
-                                } · ${it.category} · ${it.widthMm} mm`}
+                                  it.book.authors ? " - " + it.book.authors : ""
+                                } / ${it.category} / ${it.widthMm} mm`}
                                 onClick={() => setEditing(it.book)}
                               >
                                 {wide && (
@@ -719,10 +719,10 @@ export default function ShelfPage() {
                         </div>
                         <div className="plank" />
                         <div className={`shelf-caption ${over ? "over" : ""}`}>
-                          {sh.indexInBay + 1}. {sh.sections.join(" / ") || "—"} ·{" "}
+                          {sh.indexInBay + 1}. {sh.sections.join(" / ") || "-"} /{" "}
                           {Math.round(sh.usedMm / 10)} cm
                           {over
-                            ? ` · over by ${Math.round(
+                            ? ` / over by ${Math.round(
                                 (sh.usedMm - sh.capacityMm) / 10
                               )} cm`
                             : ""}
@@ -739,7 +739,7 @@ export default function ShelfPage() {
           {/* ---- printable shelf-by-shelf plan ---- */}
           <div className="print-plan">
             <h2 className="print-only plan-title">
-              Library Shelf Plan — {books.length} books
+              Library Shelf Plan - {books.length} books
             </h2>
             {bays.map((shelves, bi) => (
               <div className="pp-bay" key={bi}>
@@ -748,7 +748,7 @@ export default function ShelfPage() {
                   <div className="pp-shelf" key={sh.globalIndex}>
                     <h4>
                       Shelf {sh.indexInBay + 1}
-                      {sh.isExtension ? " · top extension" : ""} —{" "}
+                      {sh.isExtension ? " / top extension" : ""} -{" "}
                       {sh.sections.join(" / ")}
                       <span className="pp-fill">
                         {Math.round(sh.usedMm / 10)}/
@@ -763,10 +763,10 @@ export default function ShelfPage() {
                             style={{ background: it.color }}
                           />
                           <strong>{it.book.title}</strong>
-                          {it.book.authors ? ` — ${it.book.authors}` : ""}
+                          {it.book.authors ? ` - ${it.book.authors}` : ""}
                           <em>
                             {" "}
-                            · {it.category} · {it.widthMm} mm
+                            / {it.category} / {it.widthMm} mm
                           </em>
                         </li>
                       ))}

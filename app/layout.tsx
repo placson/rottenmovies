@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { isLocalAuthBypassed } from "@/lib/local-auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Shelf Nest — scan, organize, and shelve your books",
+  title: "Shelf Nest - scan, organize, and shelve your books",
   description:
-    "Turn your phone into a barcode scanner and your book collection into a beautifully organized, searchable library — then plan your real shelves.",
+    "Turn your phone into a barcode scanner and your book collection into a beautifully organized, searchable library, then plan your real shelves.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -31,6 +32,14 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const document = (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+
+  if (isLocalAuthBypassed()) return document;
+
   return (
     <ClerkProvider
       signInUrl="/sign-in"
@@ -38,11 +47,54 @@ export default function RootLayout({
       signInFallbackRedirectUrl="/library"
       signUpFallbackRedirectUrl="/library"
       afterSignOutUrl="/"
-      appearance={{ variables: { colorPrimary: "#ff6b4a" } }}
+      appearance={{
+        variables: {
+          borderRadius: "8px",
+          colorBackground: "#fffdf8",
+          colorPrimary: "#688d43",
+        },
+        elements: {
+          card: {
+            backgroundColor: "#fffdf8",
+          },
+          cardBox: {
+            backgroundColor: "#fffdf8",
+            border: "1px solid #ddd5c8",
+            borderRadius: "8px",
+            boxShadow: "0 18px 50px rgba(36, 30, 22, 0.12)",
+          },
+          footerActionLink: {
+            color: "#688d43",
+            fontWeight: "700",
+          },
+          formButtonPrimary: {
+            backgroundColor: "#171512",
+            borderRadius: "999px",
+            boxShadow: "none",
+            color: "#fffaf1",
+            fontWeight: "700",
+          },
+          formFieldInput: {
+            backgroundColor: "#fffaf1",
+            borderColor: "#ddd5c8",
+            borderRadius: "10px",
+            color: "#1d1a17",
+          },
+          headerTitle: {
+            color: "#171512",
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: "28px",
+            fontWeight: "500",
+          },
+          socialButtonsBlockButton: {
+            backgroundColor: "#fffaf1",
+            borderColor: "#ddd5c8",
+            color: "#1d1a17",
+          },
+        },
+      }}
     >
-      <html lang="en">
-        <body>{children}</body>
-      </html>
+      {document}
     </ClerkProvider>
   );
 }

@@ -90,7 +90,7 @@ export default function CategoryManager({
             </p>
           </div>
           <button className="modal-close" onClick={onClose} aria-label="Close">
-            ✕
+            x
           </button>
         </div>
 
@@ -98,7 +98,7 @@ export default function CategoryManager({
           <div className="cat-new">
             <input
               type="text"
-              placeholder="Add a category…"
+              placeholder="Add a category..."
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
