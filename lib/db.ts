@@ -98,6 +98,18 @@ async function getSql(): Promise<NeonQueryFunction<false, false>> {
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS lent_at TEXT`;
     await sql`ALTER TABLE books ADD COLUMN IF NOT EXISTS due_at TEXT`;
     await sql`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`;
+    // Enforce one row per (user, ISBN) so two devices can't insert a duplicate
+    // in a race. Create the unique index; if pre-existing duplicates block it,
+    // drop the extras (keep the earliest) and retry.
+    try {
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS books_user_isbn_uidx ON books(user_id, isbn)`;
+    } catch {
+      await sql`
+        DELETE FROM books a USING books b
+        WHERE a.user_id = b.user_id AND a.isbn = b.isbn AND a.ctid > b.ctid
+      `;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS books_user_isbn_uidx ON books(user_id, isbn)`;
+    }
     tableReady = true;
   }
   return sql;
@@ -312,14 +324,23 @@ export async function addBook(
 
     const book = buildBook(data, userId);
     const sql = await getSql();
-    await sql`
+    // Atomic dedupe: if another device inserted the same ISBN in the race
+    // window between the check above and here, ON CONFLICT skips the insert.
+    const inserted = await sql`
       INSERT INTO books (id, isbn, title, authors, cover_url, published, publisher,
                          page_count, categories, goodreads_url, added_at, user_id)
       VALUES (${book.id}, ${book.isbn}, ${book.title}, ${book.authors},
               ${book.cover_url}, ${book.published}, ${book.publisher},
               ${book.page_count}, ${JSON.stringify(book.categories)},
               ${book.goodreads_url}, ${book.added_at}, ${userId})
+      ON CONFLICT (user_id, isbn) DO NOTHING
+      RETURNING id
     `;
+    if (inserted.length === 0) {
+      // Lost the race — return the row the other device created.
+      const winner = await getBookByIsbn(userId, data.isbn);
+      if (winner) return { book: winner, created: false };
+    }
     return { book, created: true };
   }
 
