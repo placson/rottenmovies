@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import type { IScannerControls } from "@zxing/browser";
+import { normalizeIsbn } from "@/lib/books";
 
 export type ScanStatus = {
   text: string;
@@ -65,11 +66,16 @@ export default function Scanner({
           controls = ctrl;
           if (!result || !active) return;
           const text = result.getText();
+          // One physical barcode can decode to different raw strings (an
+          // EAN-13 with vs. without its 5-digit price supplement), and both
+          // normalize to the same ISBN. Debounce on the normalized key so a
+          // single book isn't accepted twice and flagged as "already had".
+          const key = normalizeIsbn(text) || text;
           const now = Date.now();
           // Debounce: too soon since last accept, or same code held in view.
           if (now - lastAt < COOLDOWN_MS) return;
-          if (text === lastCode && now - lastAt < SAME_CODE_BLOCK_MS) return;
-          lastCode = text;
+          if (key === lastCode && now - lastAt < SAME_CODE_BLOCK_MS) return;
+          lastCode = key;
           lastAt = now;
           if (navigator.vibrate) navigator.vibrate(45);
           setFlash(true);
