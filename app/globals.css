@@ -2497,6 +2497,123 @@ a {
   }
 }
 
+/* Longer, sentence-style hero headline (overrides the big single-word size). */
+.hero h1 {
+  font-size: clamp(38px, 5.2vw, 62px);
+  line-height: 1.04;
+}
+.hero-accent {
+  color: var(--accent);
+}
+.hero-accent-2 {
+  color: var(--accent-2);
+}
+
+/* ---------- three-word "how it works" pillars ---------- */
+.pillars {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 52px 0 44px;
+}
+
+.pillars-head {
+  max-width: 760px;
+  margin: 0 auto 40px;
+  text-align: center;
+}
+
+.pillars-head .section-kicker {
+  text-align: center;
+}
+
+.pillars-head h2 {
+  margin: 0 0 14px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(26px, 3.6vw, 38px);
+  line-height: 1.1;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.pillars-lede {
+  margin: 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.pillar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.pillar {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 16px;
+  padding: 30px 26px 28px;
+  box-shadow: var(--shadow-soft);
+}
+
+.pillar:nth-child(2) {
+  border-top-color: var(--ink);
+}
+.pillar:nth-child(3) {
+  border-top-color: var(--accent-2);
+}
+
+.pillar-step {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 46px;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--panel-2);
+}
+
+.pillar-word {
+  margin: 0 0 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--accent);
+}
+.pillar:nth-child(2) .pillar-word {
+  color: var(--ink);
+}
+.pillar:nth-child(3) .pillar-word {
+  color: var(--accent-2);
+}
+
+.pillar h3 {
+  margin: 0 0 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.pillar-body {
+  margin: 0;
+  color: rgba(29, 26, 23, 0.72);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+@media (max-width: 880px) {
+  .pillar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .store-section {
   max-width: 1180px;
   margin: 0 auto;

@@ -6,74 +6,26 @@ import ScanPhone from "@/components/ScanPhone";
 export default async function Landing() {
   const loggedIn = Boolean(await getSessionUserId());
 
-  const featuredBooks = [
-    {
-      title: "Mere Christianity",
-      author: "C. S. Lewis",
-      cover: "https://covers.openlibrary.org/b/id/9184573-L.jpg",
-      note: "Theology",
-    },
-    {
-      title: "The Hobbit",
-      author: "J. R. R. Tolkien",
-      cover: "https://covers.openlibrary.org/b/id/14624309-L.jpg",
-      note: "Fiction",
-    },
-    {
-      title: "Pride and Prejudice",
-      author: "Jane Austen",
-      cover: "https://covers.openlibrary.org/b/id/14619629-L.jpg",
-      note: "Classics",
-    },
-    {
-      title: "The Lion, the Witch and the Wardrobe",
-      author: "C. S. Lewis",
-      cover: "https://covers.openlibrary.org/b/id/14371458-L.jpg",
-      note: "Fantasy",
-    },
-    {
-      title: "The Brothers Karamazov",
-      author: "Fyodor Dostoyevsky",
-      cover: "https://covers.openlibrary.org/b/id/6620943-L.jpg",
-      note: "Literature",
-    },
-  ];
+  const start = loggedIn ? "/library" : "/sign-up";
 
-  const features = [
+  const pillars = [
     {
-      eyebrow: "Scan",
-      title: "Scan the stack",
-      body: "Point your camera at the ISBN. Covers, authors, years, and page counts show up without the spreadsheet ritual.",
+      word: "Simply",
+      title: "Scan, and you're done.",
+      body: "Point your phone at the barcode. The title, author, cover, and page count fill themselves in — no typing, no spreadsheets. That's the whole job.",
+      step: "01",
     },
     {
-      eyebrow: "Sort",
-      title: "Name your shelves",
-      body: "Theology, fiction, odd rabbit trails, half-built obsessions. Make categories that sound like your actual library.",
+      word: "Systematically",
+      title: "Sorted by genre, automatically.",
+      body: "Every book is filed into a sensible order — theology, church history, biography, fiction, and more — so your whole library has a clear structure without you arranging a thing.",
+      step: "02",
     },
     {
-      eyebrow: "Track",
-      title: "Keep the trail",
-      body: "Ratings, dates, Goodreads links, false starts, old favorites. See the story your reading life is quietly leaving behind.",
-    },
-    {
-      eyebrow: "Plan",
-      title: "Make shelves behave",
-      body: "Turn the pile into a measured shelf plan, sized by page count, before your floor becomes a literary crime scene.",
-    },
-    {
-      eyebrow: "Place",
-      title: "Map the room",
-      body: "Drop in the bookcases, corners, and towers. Preview the whole setup before moving one suspiciously heavy shelf.",
-    },
-    {
-      eyebrow: "Lend",
-      title: "Loan without the chase",
-      body: "Let books go adventuring with a name and date attached. Send the reminder before friendship gets weird.",
-    },
-    {
-      eyebrow: "Carry",
-      title: "Pocket the whole thing",
-      body: "Keep your catalog on your phone for bookstores, church halls, and used-book aisles where restraint goes to die.",
+      word: "Visually",
+      title: "See it on a real bookshelf.",
+      body: "Once it's arranged, view your collection on a 3D bookcase built to your own room and shelf dimensions — so you can see exactly where every book belongs.",
+      step: "03",
     },
   ];
 
@@ -85,14 +37,11 @@ export default async function Landing() {
           Shelf Nest
         </span>
         <nav className="landing-nav-links">
-          <a href="#library" className="landing-tab">
-            Library
+          <a href="#how" className="landing-tab">
+            How it works
           </a>
           <a href="#room" className="landing-tab">
-            3D room
-          </a>
-          <a href="#shelves" className="landing-tab">
-            Shelves
+            See it in 3D
           </a>
           {loggedIn ? (
             <Link href="/library" className="btn-solid">
@@ -113,31 +62,24 @@ export default async function Landing() {
 
       <section className="hero">
         <div className="hero-copy">
-          <p className="hero-badge">Personal library, beautifully kept</p>
-          <h1>Shelf Nest</h1>
+          <p className="hero-badge">Simply scan — Shelf Nest does the rest</p>
+          <h1>
+            Organize your library{" "}
+            <span className="hero-accent">systematically.</span> Arrange it{" "}
+            <span className="hero-accent-2">visually.</span>
+          </h1>
           <p className="hero-sub">
-            Scan your books, search every shelf, and plan where each volume
-            belongs in the room you actually live with.
+            Scan a book and Shelf Nest files it automatically by genre. Then see
+            your whole collection on a 3D bookshelf sized to your own room — the
+            way a library should feel.
           </p>
-          <Link
-            href={loggedIn ? "/library" : "/sign-up"}
-            className="hero-search"
-          >
-            <span>Search by ISBN, title, author, or category</span>
-            <strong>{loggedIn ? "Open" : "Start"}</strong>
-          </Link>
           <div className="hero-cta">
-            <Link
-              href={loggedIn ? "/library" : "/sign-up"}
-              className="btn-solid lg"
-            >
+            <Link href={start} className="btn-solid lg">
               {loggedIn ? "Open my library" : "Start your library"}
             </Link>
-            {!loggedIn && (
-              <Link href="/sign-in" className="btn-outline lg">
-                Sign in
-              </Link>
-            )}
+            <a href="#how" className="btn-outline lg">
+              See how it works
+            </a>
           </div>
         </div>
         <div className="hero-art" aria-hidden>
@@ -150,25 +92,24 @@ export default async function Landing() {
         </div>
       </section>
 
-      <section id="library" className="store-section">
-        <div className="section-head">
-          <div>
-            <p className="section-kicker">A library that feels browsable</p>
-            <h2>Recently organized</h2>
-          </div>
-          <Link href={loggedIn ? "/library" : "/sign-up"} className="section-link">
-            View library
-          </Link>
+      <section id="how" className="pillars">
+        <div className="pillars-head">
+          <p className="section-kicker">Three words, one workflow</p>
+          <h2>
+            Simply scan. Sorted systematically. Seen visually.
+          </h2>
+          <p className="pillars-lede">
+            Shelf Nest turns a pile of books into an organized, browsable
+            library — and then shows it to you as an actual bookshelf.
+          </p>
         </div>
-        <div className="book-rail">
-          {featuredBooks.map((book) => (
-            <article className="rail-book" key={book.title}>
-              <div className="rail-cover">
-                <img src={book.cover} alt="" loading="lazy" />
-              </div>
-              <p className="rail-title">{book.title}</p>
-              <p className="rail-author">{book.author}</p>
-              <p className="rail-note">{book.note}</p>
+        <div className="pillar-grid">
+          {pillars.map((p) => (
+            <article className="pillar" key={p.word}>
+              <span className="pillar-step">{p.step}</span>
+              <p className="pillar-word">{p.word}</p>
+              <h3>{p.title}</h3>
+              <p className="pillar-body">{p.body}</p>
             </article>
           ))}
         </div>
@@ -177,44 +118,37 @@ export default async function Landing() {
       <section id="room" className="demo-section">
         <div className="section-head">
           <div>
-            <p className="section-kicker">See it before you lift a thing</p>
-            <h2>Walk your library in 3D</h2>
+            <p className="section-kicker">The visual part</p>
+            <h2>See your library on your own shelves</h2>
           </div>
           <Link href={loggedIn ? "/shelf" : "/sign-up"} className="section-link">
             Plan my room
           </Link>
         </div>
         <p className="demo-lede">
-          A live sample study: two Billy Wide bookcases between two Billy
-          Skinnies, with one tucked diagonally into the corner. Every spine is
-          sized by its real page count and colored by its section &mdash; drag
-          to look around.
+          This is a live sample study — two wide bookcases between two narrow
+          ones, with one tucked into the corner. Set your own room and shelf
+          sizes and every spine falls into place, colored by genre and sized by
+          page count. Drag to look around.
         </p>
         <DemoRoom3D />
       </section>
 
-      <section className="features" id="shelves">
-        {features.map((f) => (
-          <div key={f.title} className="feature">
-            <p className="feature-eyebrow">{f.eyebrow}</p>
-            <h3>{f.title}</h3>
-            <p>{f.body}</p>
-          </div>
-        ))}
-      </section>
-
       <section className="closing">
-        <p className="section-kicker">Shelf planning, minus the spreadsheet</p>
+        <p className="section-kicker">Simply · Systematically · Visually</p>
         <h2>From barcode to bookcase.</h2>
-        <p>Create a free account and scan your first shelf in under a minute.</p>
-        <Link href={loggedIn ? "/library" : "/sign-up"} className="btn-solid lg">
+        <p>
+          Create a free account and scan your first shelf in under a minute.
+          Shelf Nest arranges the rest.
+        </p>
+        <Link href={start} className="btn-solid lg">
           {loggedIn ? "Open my library" : "Get started"}
         </Link>
       </section>
 
       <footer className="landing-footer">
         <span>Shelf Nest</span>
-        <span className="muted">Scan / organize / shelve</span>
+        <span className="muted">Simply · Systematically · Visually</span>
       </footer>
     </main>
   );
