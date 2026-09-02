@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSessionUserId } from "@/lib/auth";
 import DemoRoom3D from "@/components/DemoRoom3D";
 import ScanPhone from "@/components/ScanPhone";
+import PillarArt from "@/components/PillarArt";
 
 export default async function Landing() {
   const loggedIn = Boolean(await getSessionUserId());
@@ -11,18 +12,21 @@ export default async function Landing() {
   const pillars = [
     {
       word: "Simply",
+      kind: "simply" as const,
       title: "Scan, and you're done.",
       body: "Point your phone at the barcode. The title, author, cover, and page count fill themselves in — no typing, no spreadsheets. That's the whole job.",
       step: "01",
     },
     {
       word: "Systematically",
+      kind: "systematically" as const,
       title: "Sorted by genre, automatically.",
       body: "Every book is filed into a sensible order — theology, church history, biography, fiction, and more — so your whole library has a clear structure without you arranging a thing.",
       step: "02",
     },
     {
       word: "Visually",
+      kind: "visually" as const,
       title: "See it on a real bookshelf.",
       body: "Once it's arranged, view your collection on a 3D bookcase built to your own room and shelf dimensions — so you can see exactly where every book belongs.",
       step: "03",
@@ -106,7 +110,10 @@ export default async function Landing() {
         <div className="pillar-grid">
           {pillars.map((p) => (
             <article className="pillar" key={p.word}>
-              <span className="pillar-step">{p.step}</span>
+              <div className="pillar-art">
+                <PillarArt kind={p.kind} />
+                <span className="pillar-step">{p.step}</span>
+              </div>
               <p className="pillar-word">{p.word}</p>
               <h3>{p.title}</h3>
               <p className="pillar-body">{p.body}</p>
