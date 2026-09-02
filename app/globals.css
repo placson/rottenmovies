@@ -2438,6 +2438,65 @@ a {
   background: var(--paper-soft);
 }
 
+/* ---------- hero iPhone scanning mockup ---------- */
+.hero-phone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.scanphone {
+  width: min(78%, 300px);
+  height: auto;
+  filter: drop-shadow(0 26px 48px rgba(36, 30, 22, 0.28));
+}
+
+.hero-phone-caption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.scanphone-line {
+  animation: scanphone-sweep 2.6s ease-in-out infinite;
+}
+
+.scanphone-dot {
+  animation: scanphone-blink 1.3s ease-in-out infinite;
+}
+
+@keyframes scanphone-sweep {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(120px);
+  }
+}
+
+@keyframes scanphone-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanphone-line {
+    transform: translateY(60px);
+    animation: none;
+  }
+  .scanphone-dot {
+    animation: none;
+  }
+}
+
 .store-section {
   max-width: 1180px;
   margin: 0 auto;

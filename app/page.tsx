@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSessionUserId } from "@/lib/auth";
 import DemoRoom3D from "@/components/DemoRoom3D";
+import ScanPhone from "@/components/ScanPhone";
 
 export default async function Landing() {
   const loggedIn = Boolean(await getSessionUserId());
@@ -140,20 +141,11 @@ export default async function Landing() {
           </div>
         </div>
         <div className="hero-art" aria-hidden>
-          <div className="hero-device">
-            <div className="hero-device-top">
-              <span>Today</span>
-              <strong>5 new books</strong>
-            </div>
-            <div className="hero-cover-stack">
-              {featuredBooks.slice(0, 3).map((book) => (
-                <img key={book.title} src={book.cover} alt="" />
-              ))}
-            </div>
-            <div className="hero-note">
-              <span>Next shelf</span>
-              <strong>Doctrine and devotion</strong>
-            </div>
+          <div className="hero-phone">
+            <ScanPhone />
+            <p className="hero-phone-caption">
+              Point, scan, shelved &mdash; no typing.
+            </p>
           </div>
         </div>
       </section>
