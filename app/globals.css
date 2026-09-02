@@ -2508,6 +2508,9 @@ a {
 .hero-accent-2 {
   color: var(--accent-2);
 }
+.hero-accent-3 {
+  color: #3d7d8f;
+}
 
 /* ---------- three-word "how it works" pillars ---------- */
 .pillars {
@@ -2560,7 +2563,7 @@ a {
 }
 
 .pillar:nth-child(2) {
-  border-top-color: var(--ink);
+  border-top-color: #3d7d8f;
 }
 .pillar:nth-child(3) {
   border-top-color: var(--accent-2);
@@ -2586,7 +2589,7 @@ a {
   color: var(--accent);
 }
 .pillar:nth-child(2) .pillar-word {
-  color: var(--ink);
+  color: #3d7d8f;
 }
 .pillar:nth-child(3) .pillar-word {
   color: var(--accent-2);

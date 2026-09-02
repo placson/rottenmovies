@@ -64,8 +64,8 @@ export default async function Landing() {
         <div className="hero-copy">
           <p className="hero-badge">Simply scan — Shelf Nest does the rest</p>
           <h1>
-            Organize your library{" "}
-            <span className="hero-accent">systematically.</span> Arrange it{" "}
+            Add <span className="hero-accent">simply.</span> Organize{" "}
+            <span className="hero-accent-3">systematically.</span> Arrange{" "}
             <span className="hero-accent-2">visually.</span>
           </h1>
           <p className="hero-sub">
