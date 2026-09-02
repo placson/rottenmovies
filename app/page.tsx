@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSessionUserId } from "@/lib/auth";
+import DemoRoom3D from "@/components/DemoRoom3D";
 
 export default async function Landing() {
   const loggedIn = Boolean(await getSessionUserId());
@@ -85,6 +86,9 @@ export default async function Landing() {
         <nav className="landing-nav-links">
           <a href="#library" className="landing-tab">
             Library
+          </a>
+          <a href="#room" className="landing-tab">
+            3D room
           </a>
           <a href="#shelves" className="landing-tab">
             Shelves
@@ -176,6 +180,25 @@ export default async function Landing() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section id="room" className="demo-section">
+        <div className="section-head">
+          <div>
+            <p className="section-kicker">See it before you lift a thing</p>
+            <h2>Walk your library in 3D</h2>
+          </div>
+          <Link href={loggedIn ? "/shelf" : "/sign-up"} className="section-link">
+            Plan my room
+          </Link>
+        </div>
+        <p className="demo-lede">
+          A live sample study: two Billy Wide bookcases between two Billy
+          Skinnies, with one tucked diagonally into the corner. Every spine is
+          sized by its real page count and colored by its section &mdash; drag
+          to look around.
+        </p>
+        <DemoRoom3D />
       </section>
 
       <section className="features" id="shelves">
